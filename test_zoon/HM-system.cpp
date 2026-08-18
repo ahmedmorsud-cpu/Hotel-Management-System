@@ -60,6 +60,22 @@ private:
         return ss.str();
     }
 
+    // Reads an integer safely. If the user types something that
+    // isn't a number, this clears the error and asks again instead
+    // of leaving cin stuck (which used to cause an infinite loop of
+    // "Invalid Choice!").
+    int readInt()
+    {
+        int value;
+        while (!(cin >> value))
+        {
+            cin.clear();
+            cin.ignore(10000, '\n');
+            cout << "Please enter a number: ";
+        }
+        return value;
+    }
+
 public:
     Hotel()
     {
@@ -382,11 +398,11 @@ public:
             return;
         }
 
-        cout << "Enter Check-in Date: ";
-        cin >> checkInDate[room - 1];
+        cout << "Enter Check-in Date (e.g. 18-08-2026): ";
+        getline(cin, checkInDate[room - 1]);
 
         cout << "Enter Month Number (1-12): ";
-        cin >> month[room - 1];
+        month[room - 1] = readInt();
 
         if (month[room - 1] < 1 || month[room - 1] > 12)
         {
@@ -553,29 +569,38 @@ public:
         cout << "4. Maintenance - Rs. 0\n";
 
         cout << "Select Service: ";
-        cin >> choice;
+        choice = readInt();
+
+        string requested;
 
         switch (choice)
         {
             case 1:
-                roomService[room - 1] = "Room Cleaning";
+                requested = "Room Cleaning";
                 serviceBill[room - 1] += 100;
                 break;
             case 2:
-                roomService[room - 1] = "Extra Bed";
+                requested = "Extra Bed";
                 serviceBill[room - 1] += 500;
                 break;
             case 3:
-                roomService[room - 1] = "Mineral Water";
+                requested = "Mineral Water";
                 serviceBill[room - 1] += 30;
                 break;
             case 4:
-                roomService[room - 1] = "Maintenance";
+                requested = "Maintenance";
                 break;
             default:
                 cout << "Invalid Choice!\n";
                 return;
         }
+
+        // Append instead of overwrite, so earlier requests for this
+        // stay aren't lost when a new one is made.
+        if (roomService[room - 1] == "" || roomService[room - 1] == "None")
+            roomService[room - 1] = requested;
+        else
+            roomService[room - 1] += ", " + requested;
 
         cout << "Room Service Request Submitted!\n";
     }
@@ -708,6 +733,67 @@ public:
         cout << "Updated Room Bill: Rs. " << roomBill[room - 1] << endl;
     }
 
+    void cancelBooking()
+    {
+        int room;
+
+        cout << "\n========== CANCEL BOOKING ==========\n";
+        cout << "Enter Room Number: ";
+        room = readInt();
+
+        if (room < 1 || room > 15 || !booked[room - 1])
+        {
+            cout << "Invalid or Unbooked Room!\n";
+            return;
+        }
+
+        // Only allow cancelling before any food/service has been
+        // added or paid for, so this can't be used to dodge charges.
+        if (foodBill[room - 1] > 0 || serviceBill[room - 1] > 0)
+        {
+            cout << "Cannot cancel: charges already added to this room.\n";
+            cout << "Please use Checkout instead.\n";
+            return;
+        }
+
+        cout << "Customer: " << customerName[room - 1] << endl;
+        cout << "Are you sure you want to cancel this booking? (Y/N): ";
+        char confirm;
+        cin >> confirm;
+
+        if (confirm != 'Y' && confirm != 'y')
+        {
+            cout << "Cancellation aborted.\n";
+            return;
+        }
+
+        if (historyCount < 100)
+        {
+            history[historyCount] =
+                bookingID[room - 1] +
+                " - Room " + numberToString(room) +
+                " - Cancelled";
+            historyCount++;
+        }
+
+        booked[room - 1] = false;
+        bookingID[room - 1] = "";
+        customerName[room - 1] = "";
+        customerPhone[room - 1] = "";
+        customerAadhar[room - 1] = "";
+        customerPAN[room - 1] = "";
+        checkInDate[room - 1] = "";
+        month[room - 1] = 0;
+        daysStay[room - 1] = 0;
+        members[room - 1] = 0;
+        roomBill[room - 1] = 0;
+        roomService[room - 1] = "";
+        complaint[room - 1] = "";
+        complaintStatus[room - 1] = "";
+
+        cout << "Booking Cancelled Successfully.\n";
+    }
+
     void checkout()
     {
         int room;
@@ -752,7 +838,21 @@ public:
         serviceBill[room - 1] = 0;
 
         roomService[room - 1] = "";
-        complaint[room - 1] = "";complaintStatus[room - 1] = "";
+        complaint[room - 1] = "";
+        complaintStatus[room - 1] = "";
+        rating[room - 1] = 0;
+        feedback[room - 1] = "";
+
+        if (historyCount < 100)
+        {
+            history[historyCount] =
+                bookingID[room - 1] +
+                " - Room " + numberToString(room) +
+                " - Checked Out";
+            historyCount++;
+        }
+
+        bookingID[room - 1] = "";
 
         cout << "Checkout Successfully Completed!\n";
         cout << "Room is now Available.\n";
@@ -1026,7 +1126,7 @@ public:
             cout << "8. Logout\n";
 
             cout << "Enter Choice: ";
-            cin >> choice;
+            choice = readInt();
 
             switch (choice){
                 case 1:
@@ -1084,10 +1184,11 @@ public:
             cout << "12. Lost & Found\n";
             cout << "13. Booking History\n";
             cout << "14. Free Booking Quiz\n";
-            cout << "15. Logout\n";
+            cout << "15. Cancel Booking\n";
+            cout << "16. Logout\n";
 
             cout << "Enter Choice: ";
-            cin >> choice;
+            choice = readInt();
 
             switch (choice)
             {
@@ -1134,13 +1235,16 @@ public:
                     quizTask();
                     break;
                 case 15:
+                    cancelBooking();
+                    break;
+                case 16:
                     cout << "Customer Logged Out.\n";
                     break;
                 default:
                     cout << "Invalid Choice!\n";
             }
 
-        } while (choice != 15);
+        } while (choice != 16);
     }
 
     void run()
@@ -1163,7 +1267,7 @@ public:
             cout << "5. Exit\n";
 
             cout << "Enter Choice: ";
-            cin >> choice;
+            choice = readInt();
 
             switch (choice)
             {
