@@ -125,7 +125,6 @@ public:
         cout << "          HOTEL BOOKING SYSTEM\n";
         cout << "============================================\n";
         cout << "Enter Hotel Name: ";
-        cin.ignore();
         getline(cin, hotelName);
         cout << "\nHotel Name: " << hotelName << endl;
         cout << "Hotel Name Accepted Successfully!\n";
