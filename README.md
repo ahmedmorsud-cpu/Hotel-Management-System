@@ -1,6 +1,10 @@
 # Hotel-Management-System
 This is a simple `C++` based **Project** `Hotel Management System` it is completely on `console`.
 
+### Download
+- [`v0.1.0`](https://github.com/ahmedmorsud-cpu/Hotel-Management-System/releases/download/v0.1.0/HM-system.exe)
+- [**View all**](https://github.com/ahmedmorsud-cpu/Hotel-Management-System/releases)
+
 ### Files
 ```
 HM-system/                
