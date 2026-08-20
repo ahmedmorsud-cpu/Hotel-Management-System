@@ -1,16 +1,17 @@
 # Hotel-Management-System
 This is a simple `C++` based **Project** `Hotel Management System` it is completely on `console`.
 
-### Download
-- [`v0.1.0`](https://github.com/ahmedmorsud-cpu/Hotel-Management-System/releases/download/v0.1.0/HM-system.exe)
-- [**View all**](https://github.com/ahmedmorsud-cpu/Hotel-Management-System/releases)
+### Download (.exe)
+- [Download ](https://github.com/ahmedmorsud-cpu/Hotel-Management-System/releases/download/v0.1.0/HM-system.exe)(`v0.1.0`)
+
+  [**View all** ->](https://github.com/ahmedmorsud-cpu/Hotel-Management-System/releases)
 
 ### Files
 ```
 HM-system/                
-├── backup/                # Backup Folder for emergency.
+├── backup/                
 │   └── HM-system.cpp      # Main backup File for emergency.
-├── test_zoon/             # Test Folder to test all functions before saving.
+├── test_zoon/             
 │   └── HM-system.cpp      # Main test File to test all functions before saving.
 ├── HM-system.cpp          # Main File for everything.
 └── README.md              # To communicate and save ideas.
