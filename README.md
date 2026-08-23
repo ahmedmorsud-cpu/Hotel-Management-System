@@ -10,9 +10,7 @@ This is a simple `C++` based **Project** `Hotel Management System` it is complet
 ```
 HM-system/                
 ├── backup/                
-│   └── HM-system.cpp      # Main backup File for emergency.
 ├── test_zoon/             
-│   └── HM-system.cpp      # Main test File to test all functions before saving.
 ├── HM-system.cpp          # Main File for everything.
 └── README.md              # To communicate and save ideas.
 ```
