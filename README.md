@@ -4,7 +4,7 @@ This is a simple `C++` based **Project** `Hotel Management System` it is complet
 ### Download (.exe)
 - [**HM-system.exe**](https://github.com/ahmedmorsud-cpu/Hotel-Management-System/tree/main/backup) (`v0.2.0`) **:** [Download ](https://github.com/ahmedmorsud-cpu/Hotel-Management-System/releases/download/v0.2.0/HM-system.exe)
 
-  [**View all** ->](https://github.com/ahmedmorsud-cpu/Hotel-Management-System/releases)
+  [**View all/Old Versions** ->](https://github.com/ahmedmorsud-cpu/Hotel-Management-System/releases)
 
 ### Files
 ```
