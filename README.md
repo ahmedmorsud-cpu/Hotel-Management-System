@@ -21,6 +21,7 @@ HM-system/
 ├── HM-system.cpp          # Main File for everything.
 ├── README.md              # To communicate and save ideas.                
 └── backup/ 
+    ├── README.md          # To display status and info and about all versions.
     ├── v0.2.0/ 
     │   ├── HM-system.cpp
     │   └── HM-system.exe 
