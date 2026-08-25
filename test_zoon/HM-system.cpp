@@ -7,6 +7,7 @@
 
 #ifdef _WIN32
     #include <conio.h>
+    #include <windows.h>
 #else
     #include <termios.h>
     #include <unistd.h>
@@ -14,6 +15,69 @@
 #endif
 
 using namespace std;
+
+// ---- Console colors (Windows console API / ANSI escape codes) ----
+const int CLR_DEFAULT   = 7;
+const int CLR_HEADER    = 11; // cyan   - section titles
+const int CLR_SUCCESS   = 10; // green  - success / available
+const int CLR_ERROR     = 12; // red    - errors / booked
+const int CLR_HIGHLIGHT = 14; // yellow - selected menu item
+const int CLR_PROMPT    = 9;  // blue   - input prompts ("Enter ...")
+const int CLR_INFO      = 13; // magenta- labels / details
+
+void setColor(int color)
+{
+#ifdef _WIN32
+    HANDLE hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+    SetConsoleTextAttribute(hConsole, color);
+#else
+    switch (color)
+    {
+        case 11: cout << "\033[36m"; break;
+        case 10: cout << "\033[32m"; break;
+        case 12: cout << "\033[31m"; break;
+        case 14: cout << "\033[33m"; break;
+        case 9:  cout << "\033[34m"; break;
+        case 13: cout << "\033[35m"; break;
+        default: cout << "\033[0m";  break;
+    }
+#endif
+}
+
+void printHeader(string text)
+{
+    setColor(CLR_HEADER);
+    cout << text;
+    setColor(CLR_DEFAULT);
+}
+
+void printSuccess(string text)
+{
+    setColor(CLR_SUCCESS);
+    cout << text;
+    setColor(CLR_DEFAULT);
+}
+
+void printError(string text)
+{
+    setColor(CLR_ERROR);
+    cout << text;
+    setColor(CLR_DEFAULT);
+}
+
+void printPrompt(string text)
+{
+    setColor(CLR_PROMPT);
+    cout << text;
+    setColor(CLR_DEFAULT);
+}
+
+void printInfo(string text)
+{
+    setColor(CLR_INFO);
+    cout << text;
+    setColor(CLR_DEFAULT);
+}
 
 #ifndef _WIN32
 int getch()
@@ -96,7 +160,7 @@ private:
         {
             cin.clear();
             cin.ignore(10000, '\n');
-            cout << "Please enter a number: ";
+            printPrompt("Please enter a number: ");
         }
         return value;
     }
@@ -135,15 +199,19 @@ private:
 #else
             system("clear");
 #endif
-            cout << "\n============================================\n";
-            cout << title << endl;
-            cout << "============================================\n";
+            printHeader("\n============================================\n");
+            printHeader(title + "\n");
+            printHeader("============================================\n");
             cout << "(Use Up/Down arrows, Enter to select)\n\n";
 
             for (int i = 0; i < n; i++)
             {
                 if (i == selected)
+                {
+                    setColor(CLR_HIGHLIGHT);
                     cout << " > " << options[i] << "\n";
+                    setColor(CLR_DEFAULT);
+                }
                 else
                     cout << "   " << options[i] << "\n";
             }
@@ -184,7 +252,7 @@ private:
         {
             cin.clear();
             cin.ignore(10000, '\n');
-            cout << "Please enter a number: ";
+            printPrompt("Please enter a number: ");
         }
         return value;
     }
@@ -202,15 +270,19 @@ private:
 #else
             system("clear");
 #endif
-            cout << "\n============================================\n";
-            cout << title << endl;
-            cout << "============================================\n";
+            printHeader("\n============================================\n");
+            printHeader(title + "\n");
+            printHeader("============================================\n");
             cout << "(Up/Down to move, Space to select, Enter to confirm)\n\n";
 
             for (int i = 0; i < n; i++)
             {
+                if (i == cursor)
+                    setColor(CLR_HIGHLIGHT);
                 cout << (i == cursor ? " > " : "   ");
                 cout << "[" << (checked[i] ? "x" : " ") << "] " << options[i] << "\n";
+                if (i == cursor)
+                    setColor(CLR_DEFAULT);
             }
 
             int key = getch();
@@ -323,61 +395,71 @@ public:
 
     void enterHotelName()
     {
-        cout << "\n============================================\n";
+        printHeader("\n============================================\n");
         cout << "          HOTEL BOOKING SYSTEM\n";
-        cout << "============================================\n";
-        cout << "Enter Hotel Name: ";
+        printHeader("============================================\n");
+        printPrompt("Enter Hotel Name: ");
         getline(cin, hotelName);
         cout << "\nHotel Name: " << hotelName << endl;
-        cout << "Hotel Name Accepted Successfully!\n";
+        printSuccess("Hotel Name Accepted Successfully!\n");
     }
 
     void registerUser()
     {
         string p, cp;
 
-        cout << "\n========== REGISTER ==========\n";
+        printHeader("\n========== REGISTER ==========\n");
 
-        cout << "Enter Name: ";
+        printPrompt("Enter Name: ");
         getline(cin, userName);
 
-        cout << "Enter Phone Number: ";
+        printPrompt("Enter Phone Number: ");
         cin >> userPhone;
 
         while (!isValidPhone(userPhone))
         {
-            cout << "Invalid Phone Number! Enter exactly 10 digits: ";
+            printError("Invalid Phone Number! Enter exactly 10 digits: ");
             cin >> userPhone;
         }
 
-        cout << "Create Password: ";
+        printPrompt("Create Password: ");
         cin >> p;
 
         while (!isValidPassword(p))
         {
-            cout << "Password must be between 4 and 16 characters! Create Password: ";
+            printPrompt("Password must be between 4 and 16 characters! Create Password: ");
             cin >> p;
         }
 
-        cout << "Confirm Password: ";
+        printPrompt("Confirm Password: ");
         cin >> cp;
 
         if (p != cp)
         {
-            cout << "Password does not match!\n";
+            printError("Password does not match!\n");
             return;
         }
 
         userPassword = p;
         registered = true;
-        cout << "Registration Successfully Completed!\n";
+        printSuccess("Registration Successfully Completed!\n");
+
+        char loginNow;
+        printPrompt("Do you want to login with this account? (Y/N): ");
+        cin >> loginNow;
+
+        if (loginNow == 'Y' || loginNow == 'y')
+        {
+            printSuccess("Login Successfully!\n");
+            customerMenu();
+        }
     }
 
     void forgotPassword()
     {
         string phone, newPassword, confirmPassword;
 
-        cout << "\n========== FORGOT PASSWORD ==========\n";
+        printHeader("\n========== FORGOT PASSWORD ==========\n");
 
         if (!registered)
         {
@@ -385,35 +467,35 @@ public:
             return;
         }
 
-        cout << "Enter Registered Phone Number: ";
+        printPrompt("Enter Registered Phone Number: ");
         cin >> phone;
 
         if (phone != userPhone)
         {
-            cout << "Phone Number Not Found!\n";
+            printError("Phone Number Not Found!\n");
             return;
         }
 
-        cout << "Enter New Password: ";
+        printPrompt("Enter New Password: ");
         cin >> newPassword;
 
         while (!isValidPassword(newPassword))
         {
-            cout << "Password must be between 4 and 16 characters! Enter New Password: ";
+            printPrompt("Password must be between 4 and 16 characters! Enter New Password: ");
             cin >> newPassword;
         }
 
-        cout << "Confirm New Password: ";
+        printPrompt("Confirm New Password: ");
         cin >> confirmPassword;
 
         if (newPassword != confirmPassword)
         {
-            cout << "Password does not match!\n";
+            printError("Password does not match!\n");
             return;
         }
 
         userPassword = newPassword;
-        cout << "Password Changed Successfully!\n";
+        printSuccess("Password Changed Successfully!\n");
     }
 
     bool login()
@@ -426,34 +508,34 @@ public:
             return false;
         }
 
-        cout << "\n========== LOGIN ==========\n";
-        cout << "Enter Phone Number: ";
+        printHeader("\n========== LOGIN ==========\n");
+        printPrompt("Enter Phone Number: ");
         cin >> phone;
 
-        cout << "Enter Password: ";
+        printPrompt("Enter Password: ");
         cin >> password;
 
         if (phone == userPhone && password == userPassword)
         {
-            cout << "Login Successfully!\n";
+            printSuccess("Login Successfully!\n");
             return true;
         }
 
-        cout << "Wrong Phone Number or Password!\n";
+        printError("Wrong Phone Number or Password!\n");
         return false;
     }
 
     void roomStatus()
     {
-        cout << "\n========== ROOM STATUS ==========\n";
+        printHeader("\n========== ROOM STATUS ==========\n");
 
         for (int i = 0; i < 15; i++)
         {
             cout << "Room " << i + 1 << " : ";
             if (booked[i])
-                cout << "Booked";
+                printError("Booked");
             else
-                cout << "Available";
+                printSuccess("Available");
             cout << endl;
         }
     }
@@ -484,16 +566,16 @@ public:
         double budget;
         double price;
 
-        cout << "\n========== ROOM RECOMMENDATION ==========\n";
-        cout << "Enter Number of Members: ";
+        printHeader("\n========== ROOM RECOMMENDATION ==========\n");
+        printPrompt("Enter Number of Members: ");
         people = readInt();
 
-        cout << "Enter Maximum Budget Per Day: Rs. ";
+        printPrompt("Enter Maximum Budget Per Day: Rs. ");
         budget = readDouble();
 
         if (people <= 0 || budget <= 0)
         {
-            cout << "Invalid Input!\n";
+            printError("Invalid Input!\n");
             return;
         }
 
@@ -512,11 +594,11 @@ public:
         int answer;
         int score = 0;
 
-        cout << "\n========== FREE BOOKING QUIZ ==========\n";
+        printHeader("\n========== FREE BOOKING QUIZ ==========\n");
 
         if (quizAttempted)
         {
-            cout << "You have already attempted the quiz.\n";
+            printError("You have already attempted the quiz.\n");
             return;
         }
 
@@ -524,31 +606,31 @@ public:
 
         cout << "\nQ1. Which language is used in this project?\n";
         cout << "1. Java\n2. C++\n3. Python\n4. HTML\n";
-        cout << "Answer: ";
+        printPrompt("Answer: ");
         answer = readInt();
         if (answer == 2) score++;
 
         cout << "\nQ2. How many rooms are available?\n";
         cout << "1. 10\n2. 12\n3. 15\n4. 20\n";
-        cout << "Answer: ";
+        printPrompt("Answer: ");
         answer = readInt();
         if (answer == 3) score++;
 
         cout << "\nQ3. Which header is used for string?\n";
         cout << "1. <string>\n2. <iomanip>\n3. <cstdlib>\n4. <ctime>\n";
-        cout << "Answer: ";
+        printPrompt("Answer: ");
         answer = readInt();
         if (answer == 1) score++;
 
         cout << "\nQ4. Which object is used for output?\n";
         cout << "1. cin\n2. cout\n3. scanf\n4. input\n";
-        cout << "Answer: ";
+        printPrompt("Answer: ");
         answer = readInt();
         if (answer == 2) score++;
 
         cout << "\nQ5. Which keyword is used to create a class?\n";
         cout << "1. object\n2. function\n3. class\n4. create\n";
-        cout << "Answer: ";
+        printPrompt("Answer: ");
         answer = readInt();
         if (answer == 3) score++;
 
@@ -571,70 +653,70 @@ public:
 
         roomStatus();
 
-        cout << "\nEnter Room Number (1-15): ";
+        printPrompt("\nEnter Room Number (1-15): ");
         room = readInt();
 
         if (room < 1 || room > 15)
         {
-            cout << "Invalid Room Number!\n";
+            printError("Invalid Room Number!\n");
             return;
         }
 
         if (booked[room - 1])
         {
-            cout << "Room Already Booked!\n";
+            printError("Room Already Booked!\n");
             return;
         }
 
         cin.ignore();
 
-        cout << "\n========== CUSTOMER DETAILS ==========\n";
+        printHeader("\n========== CUSTOMER DETAILS ==========\n");
 
-        cout << "Enter Customer Name: ";
+        printPrompt("Enter Customer Name: ");
         getline(cin, customerName[room - 1]);
 
-        cout << "Enter Phone Number: ";
+        printPrompt("Enter Phone Number: ");
         getline(cin, customerPhone[room - 1]);
 
         while (!isValidPhone(customerPhone[room - 1]))
         {
-            cout << "Invalid Phone Number! Enter exactly 10 digits: ";
+            printError("Invalid Phone Number! Enter exactly 10 digits: ");
             getline(cin, customerPhone[room - 1]);
         }
 
-        cout << "Enter Aadhar Number: ";
+        printPrompt("Enter Aadhar Number: ");
         getline(cin, customerAadhar[room - 1]);
 
-        cout << "Enter PAN Number: ";
+        printPrompt("Enter PAN Number: ");
         getline(cin, customerPAN[room - 1]);
 
-        cout << "How Many Members: ";
+        printPrompt("How Many Members: ");
         members[room - 1] = readInt();
 
         if (members[room - 1] <= 0)
         {
-            cout << "Invalid Number of Members!\n";
+            printError("Invalid Number of Members!\n");
             return;
         }
 
-        cout << "Enter Check-in Date (e.g. 18-08-2026): ";
+        printPrompt("Enter Check-in Date (e.g. 18-08-2026): ");
         getline(cin, checkInDate[room - 1]);
 
-        cout << "Enter Month Number (1-12): ";
+        printPrompt("Enter Month Number (1-12): ");
         month[room - 1] = readInt();
 
         if (month[room - 1] < 1 || month[room - 1] > 12)
         {
-            cout << "Invalid Month!\n";
+            printError("Invalid Month!\n");
             return;
         }
 
-        cout << "Number of Days Stay: ";
+        printPrompt("Number of Days Stay: ");
         daysStay[room - 1] = readInt();
 
         if (daysStay[room - 1] <= 0)
         {
-            cout << "Invalid Number of Days!\n";
+            printError("Invalid Number of Days!\n");
             return;
         }
 
@@ -645,7 +727,7 @@ public:
         if (freeBookingAvailable)
         {
             cout << "\nFREE BOOKING AVAILABLE!\n";
-            cout << "Use Free Booking? (Y/N): ";
+            printPrompt("Use Free Booking? (Y/N): ");
             cin >> useFree;
         }
 
@@ -677,7 +759,7 @@ public:
             historyCount++;
         }
 
-        cout << "\n========== BOOKING SUCCESSFUL ==========\n";
+        printHeader("\n========== BOOKING SUCCESSFUL ==========\n");
         cout << "Hotel: " << hotelName << endl;
         cout << "Booking ID: " << bookingID[room - 1] << endl;
         cout << "Customer: " << customerName[room - 1] << endl;
@@ -693,13 +775,13 @@ public:
     {
         int room;
 
-        cout << "\n========== FOOD ORDER ==========\n";
-        cout << "Enter Room Number: ";
+        printHeader("\n========== FOOD ORDER ==========\n");
+        printPrompt("Enter Room Number: ");
         room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
-            cout << "Invalid or Unbooked Room!\n";
+            printError("Invalid or Unbooked Room!\n");
             return;
         }
 
@@ -745,20 +827,20 @@ public:
 
         cout << "\nOrder Total: Rs. " << orderTotal << endl;
         cout << "Current Food Bill: Rs. " << foodBill[room - 1] << endl;
-        cout << "Food Order Completed!\n";
+        printSuccess("Food Order Completed!\n");
     }
 
     void roomServiceRequest()
     {
         int room;
 
-        cout << "\n========== ROOM SERVICE ==========\n";
-        cout << "Enter Room Number: ";
+        printHeader("\n========== ROOM SERVICE ==========\n");
+        printPrompt("Enter Room Number: ");
         room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
-            cout << "Invalid or Unbooked Room!\n";
+            printError("Invalid or Unbooked Room!\n");
             return;
         }
 
@@ -789,20 +871,20 @@ public:
                 roomService[room - 1] += ", " + names[idx];
         }
 
-        cout << "Room Service Request Submitted!\n";
+        printSuccess("Room Service Request Submitted!\n");
     }
 
     void payment()
     {
         int room, choice;
 
-        cout << "\n========== PAYMENT ==========\n";
-        cout << "Enter Room Number: ";
+        printHeader("\n========== PAYMENT ==========\n");
+        printPrompt("Enter Room Number: ");
         room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
-            cout << "Invalid or Unbooked Room!\n";
+            printError("Invalid or Unbooked Room!\n");
             return;
         }
 
@@ -810,7 +892,7 @@ public:
         cout << "2. UPI\n";
         cout << "3. Card\n";
         cout << "4. Online Payment\n";
-        cout << "Select Payment Method: ";
+        printPrompt("Select Payment Method: ");
         choice = readInt();
 
         switch (choice)
@@ -829,7 +911,7 @@ public:
                 cout << "Payment Method: Online Payment\n";
                 break;
             default:
-                cout << "Invalid Payment Method!\n";
+                printError("Invalid Payment Method!\n");
         }
     }
 
@@ -846,10 +928,10 @@ public:
 
         cout << fixed << setprecision(2);
 
-        cout << "\n============================================\n";
+        printHeader("\n============================================\n");
         cout << "              " << hotelName << endl;
         cout << "                  RECEIPT\n";
-        cout << "============================================\n";
+        printHeader("============================================\n");
         cout << "Booking ID    : " << bookingID[room - 1] << endl;
         cout << "Customer Name : " << customerName[room - 1] << endl;
         cout << "Phone Number  : " << customerPhone[room - 1] << endl;
@@ -863,22 +945,22 @@ public:
         cout << "Service Bill  : Rs. " << serviceBill[room - 1] << endl;
         cout << "--------------------------------------------\n";
         cout << "Grand Total   : Rs. " << total << endl;
-        cout << "============================================\n";
+        printHeader("============================================\n");
         cout << "          THANK YOU FOR VISITING!\n";
-        cout << "============================================\n";
+        printHeader("============================================\n");
     }
 
     void receipt()
     {
         int room;
 
-        cout << "\n========== RECEIPT ==========\n";
-        cout << "Enter Room Number: ";
+        printHeader("\n========== RECEIPT ==========\n");
+        printPrompt("Enter Room Number: ");
         room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
-            cout << "Invalid or Unbooked Room!\n";
+            printError("Invalid or Unbooked Room!\n");
             return;
         }
 
@@ -889,30 +971,30 @@ public:
     {
         int room, extraDays;
 
-        cout << "\n========== EXTEND STAY ==========\n";
-        cout << "Enter Room Number: ";
+        printHeader("\n========== EXTEND STAY ==========\n");
+        printPrompt("Enter Room Number: ");
         room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
-            cout << "Invalid or Unbooked Room!\n";
+            printError("Invalid or Unbooked Room!\n");
             return;
         }
 
         cout << "Current Stay: " << daysStay[room - 1] << " days\n";
-        cout << "Enter Additional Days: ";
+        printPrompt("Enter Additional Days: ");
         extraDays = readInt();
 
         if (extraDays <= 0)
         {
-            cout << "Invalid Days!\n";
+            printError("Invalid Days!\n");
             return;
         }
 
         if (roomBill[room - 1] == 0)
         {
             daysStay[room - 1] += extraDays;
-            cout << "Stay Extended Successfully!\n";
+            printSuccess("Stay Extended Successfully!\n");
             cout << "Room Bill remains FREE.\n";
             return;
         }
@@ -924,7 +1006,7 @@ public:
         roomBill[room - 1] =
             pricePerDay * daysStay[room - 1];
 
-        cout << "Stay Extended Successfully!\n";
+        printSuccess("Stay Extended Successfully!\n");
         cout << "New Stay: " << daysStay[room - 1] << " days\n";
         cout << "Updated Room Bill: Rs. " << roomBill[room - 1] << endl;
     }
@@ -933,13 +1015,13 @@ public:
     {
         int room;
 
-        cout << "\n========== CANCEL BOOKING ==========\n";
-        cout << "Enter Room Number: ";
+        printHeader("\n========== CANCEL BOOKING ==========\n");
+        printPrompt("Enter Room Number: ");
         room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
-            cout << "Invalid or Unbooked Room!\n";
+            printError("Invalid or Unbooked Room!\n");
             return;
         }
 
@@ -947,13 +1029,13 @@ public:
         // added or paid for, so this can't be used to dodge charges.
         if (foodBill[room - 1] > 0 || serviceBill[room - 1] > 0)
         {
-            cout << "Cannot cancel: charges already added to this room.\n";
+            printError("Cannot cancel: charges already added to this room.\n");
             cout << "Please use Checkout instead.\n";
             return;
         }
 
         cout << "Customer: " << customerName[room - 1] << endl;
-        cout << "Are you sure you want to cancel this booking? (Y/N): ";
+        printPrompt("Are you sure you want to cancel this booking? (Y/N): ");
         char confirm;
         cin >> confirm;
 
@@ -987,7 +1069,7 @@ public:
         complaint[room - 1] = "";
         complaintStatus[room - 1] = "";
 
-        cout << "Booking Cancelled Successfully.\n";
+        printSuccess("Booking Cancelled Successfully.\n");
     }
 
     void checkout()
@@ -995,23 +1077,23 @@ public:
         int room;
         string password;
 
-        cout << "\n========== CHECKOUT ==========\n";
-        cout << "Enter Room Number: ";
+        printHeader("\n========== CHECKOUT ==========\n");
+        printPrompt("Enter Room Number: ");
         room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
-            cout << "Invalid or Unbooked Room!\n";
+            printError("Invalid or Unbooked Room!\n");
             return;
         }
 
         cout << "Customer: " << customerName[room - 1] << endl;
-        cout << "Enter Checkout Password: ";
+        printPrompt("Enter Checkout Password: ");
         cin >> password;
 
         if (password != checkoutPassword)
         {
-            cout << "Wrong Checkout Password!\n";
+            printError("Wrong Checkout Password!\n");
             return;
         }
 
@@ -1050,7 +1132,7 @@ public:
 
         bookingID[room - 1] = "";
 
-        cout << "Checkout Successfully Completed!\n";
+        printSuccess("Checkout Successfully Completed!\n");
         cout << "Room is now Available.\n";
     }
 
@@ -1058,28 +1140,28 @@ public:
     {
         int room;
 
-        cout << "\n========== CUSTOMER FEEDBACK ==========\n";
-        cout << "Enter Room Number: ";
+        printHeader("\n========== CUSTOMER FEEDBACK ==========\n");
+        printPrompt("Enter Room Number: ");
         room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
-            cout << "Invalid or Unbooked Room!\n";
+            printError("Invalid or Unbooked Room!\n");
             return;
         }
 
-        cout << "Rating (1-5): ";
+        printPrompt("Rating (1-5): ");
         rating[room - 1] = readInt();
 
         if (rating[room - 1] < 1 || rating[room - 1] > 5)
         {
-            cout << "Invalid Rating!\n";
+            printError("Invalid Rating!\n");
             return;
         }
 
         cin.ignore();
 
-        cout << "Enter Feedback: ";
+        printPrompt("Enter Feedback: ");
         getline(cin, feedback[room - 1]);
 
         cout << "Thank you for your feedback!\n";
@@ -1089,35 +1171,35 @@ public:
     {
         int room;
 
-        cout << "\n========== COMPLAINT ==========\n";
-        cout << "Enter Room Number: ";
+        printHeader("\n========== COMPLAINT ==========\n");
+        printPrompt("Enter Room Number: ");
         room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
-            cout << "Invalid or Unbooked Room!\n";
+            printError("Invalid or Unbooked Room!\n");
             return;
         }
 
         cin.ignore();
 
-        cout << "Enter Complaint: ";
+        printPrompt("Enter Complaint: ");
         getline(cin, complaint[room - 1]);
 
         complaintStatus[room - 1] = "Pending";
 
-        cout << "Complaint Submitted Successfully!\n";
+        printSuccess("Complaint Submitted Successfully!\n");
     }
 
     void lostAndFound()
     {
         int choice;
 
-        cout << "\n========== LOST AND FOUND ==========\n";
+        printHeader("\n========== LOST AND FOUND ==========\n");
         cout << "1. Report Lost Item\n";
         cout << "2. View Lost Items\n";
         cout << "3. Back\n";
-        cout << "Enter Choice: ";
+        printPrompt("Enter Choice: ");
         choice = readInt();
 
         if (choice == 1)
@@ -1130,13 +1212,13 @@ public:
 
             cin.ignore();
 
-            cout << "Enter Lost Item Name: ";
+            printPrompt("Enter Lost Item Name: ");
             getline(cin, lostFoundItem[lostFoundCount]);
 
             lostFoundStatus[lostFoundCount] = "Reported";
             lostFoundCount++;
 
-            cout << "Lost Item Reported Successfully!\n";
+            printSuccess("Lost Item Reported Successfully!\n");
         }
         else if (choice == 2)
         {
@@ -1159,7 +1241,7 @@ public:
 
     void bookingHistory()
     {
-        cout << "\n========== BOOKING HISTORY ==========\n";
+        printHeader("\n========== BOOKING HISTORY ==========\n");
 
         if (historyCount == 0)
         {
@@ -1177,17 +1259,17 @@ public:
     {
         string password;
 
-        cout << "\n========== ADMIN LOGIN ==========\n";
-        cout << "Enter Admin Password: ";
+        printHeader("\n========== ADMIN LOGIN ==========\n");
+        printPrompt("Enter Admin Password: ");
         cin >> password;
 
         if (password == adminPassword)
         {
-            cout << "Admin Login Successfully!\n";
+            printSuccess("Admin Login Successfully!\n");
             return true;
         }
 
-        cout << "Wrong Admin Password!\n";
+        printError("Wrong Admin Password!\n");
         return false;
     }
 
@@ -1195,69 +1277,69 @@ public:
     {
         string oldPassword, newPassword, confirmPassword;
 
-        cout << "\n========== CHANGE ADMIN PASSWORD ==========\n";
+        printHeader("\n========== CHANGE ADMIN PASSWORD ==========\n");
 
-        cout << "Enter Current Admin Password: ";
+        printPrompt("Enter Current Admin Password: ");
         cin >> oldPassword;
 
         if (oldPassword != adminPassword)
         {
-            cout << "Wrong Current Admin Password!\n";
+            printError("Wrong Current Admin Password!\n");
             return;
         }
 
-        cout << "Enter New Admin Password: ";
+        printPrompt("Enter New Admin Password: ");
         cin >> newPassword;
 
-        cout << "Confirm New Password: ";
+        printPrompt("Confirm New Password: ");
         cin >> confirmPassword;
 
         if (newPassword != confirmPassword)
         {
-            cout << "Password does not match!\n";
+            printError("Password does not match!\n");
             return;
         }
 
         adminPassword = newPassword;
-        cout << "Admin Password Changed Successfully!\n";
+        printSuccess("Admin Password Changed Successfully!\n");
     }
 
     void changeCheckoutPassword()
     {
         string oldPassword, newPassword, confirmPassword;
 
-        cout << "\n========== CHANGE CHECKOUT PASSWORD ==========\n";
+        printHeader("\n========== CHANGE CHECKOUT PASSWORD ==========\n");
 
-        cout << "Enter Current Checkout Password: ";
+        printPrompt("Enter Current Checkout Password: ");
         cin >> oldPassword;
 
         if (oldPassword != checkoutPassword)
         {
-            cout << "Wrong Current Checkout Password!\n";
+            printError("Wrong Current Checkout Password!\n");
             return;
         }
 
-        cout << "Enter New Checkout Password: ";
+        printPrompt("Enter New Checkout Password: ");
         cin >> newPassword;
 
-        cout << "Confirm New Password: ";
+        printPrompt("Confirm New Password: ");
         cin >> confirmPassword;
 
         if (newPassword != confirmPassword)
         {
-            cout << "Password does not match!\n";
+            printError("Password does not match!\n");
             return;
         }
 
         checkoutPassword = newPassword;
-        cout << "Checkout Password Changed Successfully!\n";
+        printSuccess("Checkout Password Changed Successfully!\n");
     }
 
     void viewComplaints()
     {
         bool found = false;
 
-        cout << "\n========== CUSTOMER COMPLAINTS ==========\n";
+        printHeader("\n========== CUSTOMER COMPLAINTS ==========\n");
 
         for (int i = 0; i < 15; i++)
         {
@@ -1280,7 +1362,7 @@ public:
     {
         bool found = false;
 
-        cout << "\n========== CUSTOMER FEEDBACK ==========\n";
+        printHeader("\n========== CUSTOMER FEEDBACK ==========\n");
 
         for (int i = 0; i < 15; i++)
         {
@@ -1341,7 +1423,7 @@ public:
                     cout << "Admin Logged Out.\n";
                     break;
                 default:
-                    cout << "Invalid Choice!\n";
+                    printError("Invalid Choice!\n");
             }
 
             if (choice != 8)
@@ -1415,7 +1497,7 @@ public:
                     cout << "Customer Logged Out.\n";
                     break;
                 default:
-                    cout << "Invalid Choice!\n";
+                    printError("Invalid Choice!\n");
             }
 
             if (choice != 16)
@@ -1456,7 +1538,7 @@ public:
                     cout << "\nTHANK YOU FOR USING HOTEL SYSTEM\n";
                     break;
                 default:
-                    cout << "Invalid Choice!\n";
+                    printError("Invalid Choice!\n");
             }
 
             if (choice != 5)
