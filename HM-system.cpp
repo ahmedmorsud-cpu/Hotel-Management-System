@@ -2,7 +2,32 @@
 #include <string>
 #include <iomanip>
 #include <sstream>
+#include <vector>
+#include <cstdlib>
+
+#ifdef _WIN32
+    #include <conio.h>
+#else
+    #include <termios.h>
+    #include <unistd.h>
+    #include <cstdio>
+#endif
+
 using namespace std;
+
+#ifndef _WIN32
+int getch()
+{
+    termios oldt, newt;
+    tcgetattr(STDIN_FILENO, &oldt);
+    newt = oldt;
+    newt.c_lflag &= ~(ICANON | ECHO);
+    tcsetattr(STDIN_FILENO, TCSANOW, &newt);
+    int ch = getchar();
+    tcsetattr(STDIN_FILENO, TCSANOW, &oldt);
+    return ch;
+}
+#endif
 
 class Hotel
 {
@@ -76,6 +101,183 @@ private:
         return value;
     }
 
+    // Builds a menu option list without needing C++11 brace-init lists,
+    // so this compiles fine on older compiler defaults (e.g. Dev-C++ /
+    // TDM-GCC with no -std flag set). Usage:
+    //   vector<string> opts = makeMenu(5, "One", "Two", "Three", "Four", "Five");
+    vector<string> makeMenu(int count, const string &a = "", const string &b = "",
+        const string &c = "", const string &d = "", const string &e = "",
+        const string &f = "", const string &g = "", const string &h = "",
+        const string &i = "", const string &j = "", const string &k = "",
+        const string &l = "", const string &m = "", const string &n2 = "",
+        const string &o = "", const string &p = "")
+    {
+        const string all[16] = {a, b, c, d, e, f, g, h, i, j, k, l, m, n2, o, p};
+        vector<string> result;
+        for (int idx = 0; idx < count; idx++)
+            result.push_back(all[idx]);
+        return result;
+    }
+
+    // Shows options with arrow-key navigation, Firebase-CLI style.
+    // Up/Down arrows move the highlight, Enter selects it. Returns a
+    // 1-based index, same as what "Enter Choice:" + readInt() used to
+    // return, so every existing switch(choice) still works unchanged.
+    int selectMenu(vector<string> options, string title)
+    {
+        int selected = 0;
+        int n = (int)options.size();
+
+        while (true)
+        {
+#ifdef _WIN32
+            system("cls");
+#else
+            system("clear");
+#endif
+            cout << "\n============================================\n";
+            cout << title << endl;
+            cout << "============================================\n";
+            cout << "(Use Up/Down arrows, Enter to select)\n\n";
+
+            for (int i = 0; i < n; i++)
+            {
+                if (i == selected)
+                    cout << " > " << options[i] << "\n";
+                else
+                    cout << "   " << options[i] << "\n";
+            }
+
+            int key = getch();
+
+#ifdef _WIN32
+            if (key == 224 || key == 0)
+            {
+                key = getch();
+                if (key == 72) selected = (selected - 1 + n) % n;
+                else if (key == 80) selected = (selected + 1) % n;
+            }
+            else if (key == 13)
+            {
+                return selected + 1;
+            }
+#else
+            if (key == 27)
+            {
+                getch();
+                int arrow = getch();
+                if (arrow == 'A') selected = (selected - 1 + n) % n;
+                else if (arrow == 'B') selected = (selected + 1) % n;
+            }
+            else if (key == 10)
+            {
+                return selected + 1;
+            }
+#endif
+        }
+    }
+
+    double readDouble()
+    {
+        double value;
+        while (!(cin >> value))
+        {
+            cin.clear();
+            cin.ignore(10000, '\n');
+            cout << "Please enter a number: ";
+        }
+        return value;
+    }
+
+    vector<int> selectMultiMenu(vector<string> options, string title)
+    {
+        int n = (int)options.size();
+        vector<bool> checked(n, false);
+        int cursor = 0;
+
+        while (true)
+        {
+#ifdef _WIN32
+            system("cls");
+#else
+            system("clear");
+#endif
+            cout << "\n============================================\n";
+            cout << title << endl;
+            cout << "============================================\n";
+            cout << "(Up/Down to move, Space to select, Enter to confirm)\n\n";
+
+            for (int i = 0; i < n; i++)
+            {
+                cout << (i == cursor ? " > " : "   ");
+                cout << "[" << (checked[i] ? "x" : " ") << "] " << options[i] << "\n";
+            }
+
+            int key = getch();
+
+#ifdef _WIN32
+            if (key == 224 || key == 0)
+            {
+                key = getch();
+                if (key == 72) cursor = (cursor - 1 + n) % n;
+                else if (key == 80) cursor = (cursor + 1) % n;
+            }
+            else if (key == ' ')
+            {
+                checked[cursor] = !checked[cursor];
+            }
+            else if (key == 13)
+            {
+                break;
+            }
+#else
+            if (key == 27)
+            {
+                getch();
+                int arrow = getch();
+                if (arrow == 'A') cursor = (cursor - 1 + n) % n;
+                else if (arrow == 'B') cursor = (cursor + 1) % n;
+            }
+            else if (key == ' ')
+            {
+                checked[cursor] = !checked[cursor];
+            }
+            else if (key == 10)
+            {
+                break;
+            }
+#endif
+        }
+
+        vector<int> result;
+        for (int i = 0; i < n; i++)
+            if (checked[i])
+                result.push_back(i + 1);
+
+        return result;
+    }
+
+    void pauseScreen()
+    {
+        cout << "\nPress any key to continue...";
+        getch();
+    }
+
+    bool isValidPhone(const string &phone)
+    {
+        if (phone.length() != 10)
+            return false;
+        for (size_t i = 0; i < phone.length(); i++)
+            if (!isdigit((unsigned char)phone[i]))
+                return false;
+        return true;
+    }
+
+    bool isValidPassword(const string &pass)
+    {
+        return pass.length() >= 4 && pass.length() <= 16;
+    }
+
 public:
     Hotel()
     {
@@ -135,7 +337,6 @@ public:
         string p, cp;
 
         cout << "\n========== REGISTER ==========\n";
-        cin.ignore();
 
         cout << "Enter Name: ";
         getline(cin, userName);
@@ -143,8 +344,20 @@ public:
         cout << "Enter Phone Number: ";
         cin >> userPhone;
 
+        while (!isValidPhone(userPhone))
+        {
+            cout << "Invalid Phone Number! Enter exactly 10 digits: ";
+            cin >> userPhone;
+        }
+
         cout << "Create Password: ";
         cin >> p;
+
+        while (!isValidPassword(p))
+        {
+            cout << "Password must be between 4 and 16 characters! Create Password: ";
+            cin >> p;
+        }
 
         cout << "Confirm Password: ";
         cin >> cp;
@@ -183,6 +396,12 @@ public:
 
         cout << "Enter New Password: ";
         cin >> newPassword;
+
+        while (!isValidPassword(newPassword))
+        {
+            cout << "Password must be between 4 and 16 characters! Enter New Password: ";
+            cin >> newPassword;
+        }
 
         cout << "Confirm New Password: ";
         cin >> confirmPassword;
@@ -267,10 +486,10 @@ public:
 
         cout << "\n========== ROOM RECOMMENDATION ==========\n";
         cout << "Enter Number of Members: ";
-        cin >> people;
+        people = readInt();
 
         cout << "Enter Maximum Budget Per Day: Rs. ";
-        cin >> budget;
+        budget = readDouble();
 
         if (people <= 0 || budget <= 0)
         {
@@ -278,12 +497,7 @@ public:
             return;
         }
 
-        if (people <= 2)
-            price = 1000;
-        else if (people <= 4)
-            price = 1500;
-        else
-            price = 2000;
+        price = getRoomPrice(people, 0);
 
         cout << "Recommended Price: Rs. " << price << " per day\n";
 
@@ -311,31 +525,31 @@ public:
         cout << "\nQ1. Which language is used in this project?\n";
         cout << "1. Java\n2. C++\n3. Python\n4. HTML\n";
         cout << "Answer: ";
-        cin >> answer;
+        answer = readInt();
         if (answer == 2) score++;
 
         cout << "\nQ2. How many rooms are available?\n";
         cout << "1. 10\n2. 12\n3. 15\n4. 20\n";
         cout << "Answer: ";
-        cin >> answer;
+        answer = readInt();
         if (answer == 3) score++;
 
         cout << "\nQ3. Which header is used for string?\n";
         cout << "1. <string>\n2. <iomanip>\n3. <cstdlib>\n4. <ctime>\n";
         cout << "Answer: ";
-        cin >> answer;
+        answer = readInt();
         if (answer == 1) score++;
 
         cout << "\nQ4. Which object is used for output?\n";
         cout << "1. cin\n2. cout\n3. scanf\n4. input\n";
         cout << "Answer: ";
-        cin >> answer;
+        answer = readInt();
         if (answer == 2) score++;
 
         cout << "\nQ5. Which keyword is used to create a class?\n";
         cout << "1. object\n2. function\n3. class\n4. create\n";
         cout << "Answer: ";
-        cin >> answer;
+        answer = readInt();
         if (answer == 3) score++;
 
         cout << "\nYour Score: " << score << "/5\n";
@@ -358,7 +572,7 @@ public:
         roomStatus();
 
         cout << "\nEnter Room Number (1-15): ";
-        cin >> room;
+        room = readInt();
 
         if (room < 1 || room > 15)
         {
@@ -382,6 +596,12 @@ public:
         cout << "Enter Phone Number: ";
         getline(cin, customerPhone[room - 1]);
 
+        while (!isValidPhone(customerPhone[room - 1]))
+        {
+            cout << "Invalid Phone Number! Enter exactly 10 digits: ";
+            getline(cin, customerPhone[room - 1]);
+        }
+
         cout << "Enter Aadhar Number: ";
         getline(cin, customerAadhar[room - 1]);
 
@@ -389,7 +609,7 @@ public:
         getline(cin, customerPAN[room - 1]);
 
         cout << "How Many Members: ";
-        cin >> members[room - 1];
+        members[room - 1] = readInt();
 
         if (members[room - 1] <= 0)
         {
@@ -410,7 +630,7 @@ public:
         }
 
         cout << "Number of Days Stay: ";
-        cin >> daysStay[room - 1];
+        daysStay[room - 1] = readInt();
 
         if (daysStay[room - 1] <= 0)
         {
@@ -471,12 +691,11 @@ public:
 
     void foodOrder()
     {
-        int room, choice, quantity;
-        char again = 'Y';
+        int room;
 
         cout << "\n========== FOOD ORDER ==========\n";
         cout << "Enter Room Number: ";
-        cin >> room;
+        room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
@@ -484,77 +703,58 @@ public:
             return;
         }
 
-        while (again == 'Y' || again == 'y')
+        string names[10] = {"Rice", "Chicken", "Dal", "Egg Curry", "Tea",
+            "Roti", "Paneer", "Fish Curry", "Coffee", "Cold Drink"};
+        double prices[10] = {50, 120, 40, 80, 20, 10, 150, 180, 40, 50};
+
+        vector<string> menu = makeMenu(10, "Rice - Rs. 50", "Chicken - Rs. 120",
+            "Dal - Rs. 40", "Egg Curry - Rs. 80", "Tea - Rs. 20", "Roti - Rs. 10",
+            "Paneer - Rs. 150", "Fish Curry - Rs. 180", "Coffee - Rs. 40",
+            "Cold Drink - Rs. 50");
+
+        vector<int> selected = selectMultiMenu(menu, "FOOD ORDER - Room " + numberToString(room));
+
+        if (selected.empty())
         {
-            double price = 0;
-            string item;
+            cout << "No Items Selected.\n";
+            return;
+        }
 
-            cout << "\n1. Rice - Rs. 50\n";
-            cout << "2. Chicken - Rs. 120\n";
-            cout << "3. Dal - Rs. 40\n";
-            cout << "4. Egg Curry - Rs. 80\n";
-            cout << "5. Tea - Rs. 20\n";
-            cout << "6. Roti - Rs. 10\n";
-            cout << "7. Paneer - Rs. 150\n";
-            cout << "8. Fish Curry - Rs. 180\n";
-            cout << "9. Coffee - Rs. 40\n";
-            cout << "10. Cold Drink - Rs. 50\n";
-            cout << "11. Exit\n";
+        double orderTotal = 0;
 
-            cout << "Select Food: ";
-            cin >> choice;
+        for (size_t s = 0; s < selected.size(); s++)
+        {
+            int idx = selected[s] - 1;
+            int quantity;
 
-            if (choice == 11)
-                break;
-
-            switch (choice)
-            {
-                case 1: item = "Rice"; price = 50; break;
-                case 2: item = "Chicken"; price = 120; break;
-                case 3: item = "Dal"; price = 40; break;
-                case 4: item = "Egg Curry"; price = 80; break;
-                case 5: item = "Tea"; price = 20; break;
-                case 6: item = "Roti"; price = 10; break;
-                case 7: item = "Paneer"; price = 150; break;
-                case 8: item = "Fish Curry"; price = 180; break;
-                case 9: item = "Coffee"; price = 40; break;
-                case 10: item = "Cold Drink"; price = 50; break;
-                default:
-                    cout << "Invalid Food Choice!\n";
-                    continue;
-            }
-
-            cout << "Enter Quantity: ";
-            cin >> quantity;
+            cout << "\nEnter Quantity for " << names[idx] << ": ";
+            quantity = readInt();
 
             if (quantity <= 0)
             {
-                cout << "Invalid Quantity!\n";
+                cout << "Invalid Quantity, Skipping " << names[idx] << ".\n";
                 continue;
             }
 
-            double total = price * quantity;
+            double total = prices[idx] * quantity;
             foodBill[room - 1] += total;
+            orderTotal += total;
 
-            cout << "\nFood Item: " << item << endl;
-            cout << "Quantity: " << quantity << endl;
-            cout << "Item Total: Rs. " << total << endl;
-            cout << "Current Food Bill: Rs. " << foodBill[room - 1] << endl;
-
-            cout << "Order More? (Y/N): ";
-            cin >> again;
+            cout << names[idx] << " x " << quantity << " = Rs. " << total << endl;
         }
 
+        cout << "\nOrder Total: Rs. " << orderTotal << endl;
+        cout << "Current Food Bill: Rs. " << foodBill[room - 1] << endl;
         cout << "Food Order Completed!\n";
     }
 
     void roomServiceRequest()
     {
-        int room, choice;
+        int room;
 
         cout << "\n========== ROOM SERVICE ==========\n";
         cout << "Enter Room Number: ";
-        cin >> room;
+        room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
@@ -562,44 +762,32 @@ public:
             return;
         }
 
-        cout << "1. Room Cleaning - Rs. 100\n";
-        cout << "2. Extra Bed - Rs. 500\n";
-        cout << "3. Mineral Water - Rs. 30\n";
-        cout << "4. Maintenance - Rs. 0\n";
+        string names[4] = {"Room Cleaning", "Extra Bed", "Mineral Water", "Maintenance"};
+        double prices[4] = {100, 500, 30, 0};
 
-        cout << "Select Service: ";
-        choice = readInt();
+        vector<string> menu = makeMenu(4, "Room Cleaning - Rs. 100", "Extra Bed - Rs. 500",
+            "Mineral Water - Rs. 30", "Maintenance - Rs. 0");
 
-        string requested;
+        vector<int> selected = selectMultiMenu(menu, "ROOM SERVICE - Room " + numberToString(room));
 
-        switch (choice)
+        if (selected.empty())
         {
-            case 1:
-                requested = "Room Cleaning";
-                serviceBill[room - 1] += 100;
-                break;
-            case 2:
-                requested = "Extra Bed";
-                serviceBill[room - 1] += 500;
-                break;
-            case 3:
-                requested = "Mineral Water";
-                serviceBill[room - 1] += 30;
-                break;
-            case 4:
-                requested = "Maintenance";
-                break;
-            default:
-                cout << "Invalid Choice!\n";
-                return;
+            cout << "No Service Selected.\n";
+            return;
         }
 
         // Append instead of overwrite, so earlier requests for this
         // stay aren't lost when a new one is made.
-        if (roomService[room - 1] == "" || roomService[room - 1] == "None")
-            roomService[room - 1] = requested;
-        else
-            roomService[room - 1] += ", " + requested;
+        for (size_t s = 0; s < selected.size(); s++)
+        {
+            int idx = selected[s] - 1;
+            serviceBill[room - 1] += prices[idx];
+
+            if (roomService[room - 1] == "" || roomService[room - 1] == "None")
+                roomService[room - 1] = names[idx];
+            else
+                roomService[room - 1] += ", " + names[idx];
+        }
 
         cout << "Room Service Request Submitted!\n";
     }
@@ -610,7 +798,7 @@ public:
 
         cout << "\n========== PAYMENT ==========\n";
         cout << "Enter Room Number: ";
-        cin >> room;
+        room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
@@ -623,7 +811,7 @@ public:
         cout << "3. Card\n";
         cout << "4. Online Payment\n";
         cout << "Select Payment Method: ";
-        cin >> choice;
+        choice = readInt();
 
         switch (choice)
         {
@@ -645,20 +833,12 @@ public:
         }
     }
 
-    void receipt()
+    // Prints the bill for a room that's already been validated as
+    // booked. Shared by receipt() (which asks the user for a room
+    // number first) and checkout() (which already has one) so the
+    // room is never asked for twice.
+    void printReceipt(int room)
     {
-        int room;
-
-        cout << "\n========== RECEIPT ==========\n";
-        cout << "Enter Room Number: ";
-        cin >> room;
-
-        if (room < 1 || room > 15 || !booked[room - 1])
-        {
-            cout << "Invalid or Unbooked Room!\n";
-            return;
-        }
-
         double total =
             roomBill[room - 1] +
             foodBill[room - 1] +
@@ -688,13 +868,30 @@ public:
         cout << "============================================\n";
     }
 
+    void receipt()
+    {
+        int room;
+
+        cout << "\n========== RECEIPT ==========\n";
+        cout << "Enter Room Number: ";
+        room = readInt();
+
+        if (room < 1 || room > 15 || !booked[room - 1])
+        {
+            cout << "Invalid or Unbooked Room!\n";
+            return;
+        }
+
+        printReceipt(room);
+    }
+
     void extendStay()
     {
         int room, extraDays;
 
         cout << "\n========== EXTEND STAY ==========\n";
         cout << "Enter Room Number: ";
-        cin >> room;
+        room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
@@ -704,7 +901,7 @@ public:
 
         cout << "Current Stay: " << daysStay[room - 1] << " days\n";
         cout << "Enter Additional Days: ";
-        cin >> extraDays;
+        extraDays = readInt();
 
         if (extraDays <= 0)
         {
@@ -800,7 +997,7 @@ public:
 
         cout << "\n========== CHECKOUT ==========\n";
         cout << "Enter Room Number: ";
-        cin >> room;
+        room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
@@ -818,7 +1015,7 @@ public:
             return;
         }
 
-        receipt();
+        printReceipt(room);
 
         booked[room - 1] = false;
 
@@ -863,7 +1060,7 @@ public:
 
         cout << "\n========== CUSTOMER FEEDBACK ==========\n";
         cout << "Enter Room Number: ";
-        cin >> room;
+        room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
@@ -872,7 +1069,7 @@ public:
         }
 
         cout << "Rating (1-5): ";
-        cin >> rating[room - 1];
+        rating[room - 1] = readInt();
 
         if (rating[room - 1] < 1 || rating[room - 1] > 5)
         {
@@ -894,7 +1091,7 @@ public:
 
         cout << "\n========== COMPLAINT ==========\n";
         cout << "Enter Room Number: ";
-        cin >> room;
+        room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
@@ -921,7 +1118,7 @@ public:
         cout << "2. View Lost Items\n";
         cout << "3. Back\n";
         cout << "Enter Choice: ";
-        cin >> choice;
+        choice = readInt();
 
         if (choice == 1)
         {
@@ -1111,21 +1308,12 @@ public:
 
         do
         {
-            cout << "\n============================================\n";
-            cout << "                ADMIN PANEL\n";
-            cout << "============================================\n";
-
-            cout << "1. Room Status\n";
-            cout << "2. Booking History\n";
-            cout << "3. Change Admin Password\n";
-            cout << "4. Change Checkout Password\n";
-            cout << "5. Lost & Found\n";
-            cout << "6. View Complaints\n";
-            cout << "7. View Feedback\n";
-            cout << "8. Logout\n";
-
-            cout << "Enter Choice: ";
-            choice = readInt();
+            choice = selectMenu(
+                makeMenu(8, "Room Status", "Booking History", "Change Admin Password",
+                    "Change Checkout Password", "Lost & Found", "View Complaints",
+                    "View Feedback", "Logout"),
+                "ADMIN PANEL"
+            );
 
             switch (choice){
                 case 1:
@@ -1156,6 +1344,9 @@ public:
                     cout << "Invalid Choice!\n";
             }
 
+            if (choice != 8)
+                pauseScreen();
+
         } while (choice != 8);
     }
 
@@ -1165,29 +1356,13 @@ public:
 
         do
         {
-            cout << "\n============================================\n";
-            cout << "              CUSTOMER MENU\n";
-            cout << "============================================\n";
-
-            cout << "1. Room Status\n";
-            cout << "2. Room Recommendation\n";
-            cout << "3. Book Room\n";
-            cout << "4. Food Order\n";
-            cout << "5. Room Service\n";
-            cout << "6. Payment\n";
-            cout << "7. Receipt\n";
-            cout << "8. Extend Stay\n";
-            cout << "9. Checkout\n";
-            cout << "10. Feedback\n";
-            cout << "11. Complaint\n";
-            cout << "12. Lost & Found\n";
-            cout << "13. Booking History\n";
-            cout << "14. Free Booking Quiz\n";
-            cout << "15. Cancel Booking\n";
-            cout << "16. Logout\n";
-
-            cout << "Enter Choice: ";
-            choice = readInt();
+            choice = selectMenu(
+                makeMenu(16, "Room Status", "Room Recommendation", "Book Room", "Food Order",
+                    "Room Service", "Payment", "Receipt", "Extend Stay", "Checkout",
+                    "Feedback", "Complaint", "Lost & Found", "Booking History",
+                    "Free Booking Quiz", "Cancel Booking", "Logout"),
+                "CUSTOMER MENU"
+            );
 
             switch (choice)
             {
@@ -1243,6 +1418,9 @@ public:
                     cout << "Invalid Choice!\n";
             }
 
+            if (choice != 16)
+                pauseScreen();
+
         } while (choice != 16);
     }
 
@@ -1254,19 +1432,10 @@ public:
 
         do
         {
-            cout << "\n============================================\n";
-            cout << "             " << hotelName << endl;
-            cout << "          HOTEL BOOKING SYSTEM\n";
-            cout << "============================================\n";
-
-            cout << "1. Register\n";
-            cout << "2. Login\n";
-            cout << "3. Forgot Password\n";
-            cout << "4. Admin Panel\n";
-            cout << "5. Exit\n";
-
-            cout << "Enter Choice: ";
-            choice = readInt();
+            choice = selectMenu(
+                makeMenu(5, "Register", "Login", "Forgot Password", "Admin Panel", "Exit"),
+                hotelName + "\n          HOTEL BOOKING SYSTEM"
+            );
 
             switch (choice)
             {
@@ -1289,6 +1458,9 @@ public:
                 default:
                     cout << "Invalid Choice!\n";
             }
+
+            if (choice != 5)
+                pauseScreen();
 
         } while (choice != 5);
     }
