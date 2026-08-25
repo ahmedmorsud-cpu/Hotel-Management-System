@@ -2,7 +2,7 @@
 This is a simple `C++` based **Project** `Hotel Management System` it is completely on `console`.
 
 ### Download (.exe)
-- [Download ](https://github.com/ahmedmorsud-cpu/Hotel-Management-System/releases/download/v0.1.0/HM-system.exe)(`v0.1.0`)
+- **HM-System.exe** (`v0.1.0`) **:** [Download ](https://github.com/ahmedmorsud-cpu/Hotel-Management-System/releases/download/v0.1.0/HM-system.exe)
 
   [**View all** ->](https://github.com/ahmedmorsud-cpu/Hotel-Management-System/releases)
 
