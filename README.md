@@ -14,18 +14,20 @@ This is a simple `C++` based **Project** `Hotel Management System` it is complet
 
 ### Files
 ```
-HM-system/                
-├── backup/ 
-│   ├── v0.2.0/ 
-│   │   ├── HM-system.cpp
-│   │   └── HM-system.exe 
-│   └── v0.1.0/  
-│       ├── HM-system.cpp
-│       └── HM-system.exe        
-├── test_zoon/  
+HM-system/
+├── test_zoon/ 
+│   ├── README.md          # To display current status.
 │   └── HM-system.cpp      # Test file (.cpp).
 ├── HM-system.cpp          # Main File for everything.
-└── README.md              # To communicate and save ideas.
+├── README.md              # To communicate and save ideas.                
+└── backup/ 
+    ├── v0.2.0/ 
+    │   ├── HM-system.cpp
+    │   └── HM-system.exe 
+    └── v0.1.0/  
+        ├── HM-system.cpp
+        └── HM-system.exe        
+
 ```
 
 ## Dev
