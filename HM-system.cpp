@@ -7,6 +7,7 @@
 
 #ifdef _WIN32
     #include <conio.h>
+    #include <windows.h>
 #else
     #include <termios.h>
     #include <unistd.h>
@@ -28,6 +29,158 @@ int getch()
     return ch;
 }
 #endif
+
+// ============================================================
+//  UI LAYER  (ANSI colours, boxes, banners, messages)
+//  Pure presentation - no hotel logic lives in here.
+// ============================================================
+namespace ui
+{
+    const string RESET   = "\033[0m";
+    const string BOLD    = "\033[1m";
+    const string DIM     = "\033[2m";
+    const string REV     = "\033[7m";
+
+    const string RED     = "\033[91m";
+    const string GREEN   = "\033[92m";
+    const string YELLOW  = "\033[93m";
+    const string BLUE    = "\033[94m";
+    const string MAGENTA = "\033[95m";
+    const string CYAN    = "\033[96m";
+    const string WHITE   = "\033[97m";
+    const string GREY    = "\033[90m";
+
+    const string BG_CYAN = "\033[46m\033[30m";   // cyan bar, black text
+
+    const int W = 56;   // inner width of boxes
+
+    inline void enableAnsi()
+    {
+#ifdef _WIN32
+        HANDLE h = GetStdHandle(STD_OUTPUT_HANDLE);
+        DWORD mode = 0;
+        if (GetConsoleMode(h, &mode))
+            SetConsoleMode(h, mode | 0x0004); // ENABLE_VIRTUAL_TERMINAL_PROCESSING
+#endif
+    }
+
+    inline string repeat(const string &s, int n)
+    {
+        string r;
+        for (int i = 0; i < n; i++) r += s;
+        return r;
+    }
+
+    inline string padRight(const string &s, int width)
+    {
+        string r = s;
+        while ((int)r.length() < width) r += " ";
+        return r;
+    }
+
+    inline string center(const string &s, int width)
+    {
+        int len = (int)s.length();
+        if (len >= width) return s;
+        int left = (width - len) / 2;
+        int right = width - len - left;
+        return repeat(" ", left) + s + repeat(" ", right);
+    }
+
+    inline void clearScreen()
+    {
+        cout << "\033[2J\033[H";
+        cout.flush();
+    }
+
+    inline void hideCursor() { cout << "\033[?25l"; cout.flush(); }
+    inline void showCursor() { cout << "\033[?25h"; cout.flush(); }
+
+    inline void borderTop(const string &color)
+    {
+        cout << color << "+" << repeat("=", W) << "+" << RESET << "\n";
+    }
+
+    inline void borderMid(const string &color)
+    {
+        cout << color << "+" << repeat("-", W) << "+" << RESET << "\n";
+    }
+
+    inline void borderBottom(const string &color)
+    {
+        cout << color << "+" << repeat("=", W) << "+" << RESET << "\n";
+    }
+
+    // One line inside a box: | text |
+    inline void boxLine(const string &text, const string &borderColor,
+                        const string &textColor = "", bool centered = false)
+    {
+        string body = centered ? center(text, W - 2) : padRight(text, W - 2);
+        cout << borderColor << "|" << RESET << " "
+             << textColor << body << RESET << " "
+             << borderColor << "|" << RESET << "\n";
+    }
+
+    // Big title banner
+    inline void banner(const string &title, const string &subtitle = "",
+                       const string &color = CYAN)
+    {
+        cout << "\n";
+        borderTop(color);
+        boxLine("", color);
+        boxLine(title, color, BOLD + WHITE, true);
+        if (subtitle != "")
+            boxLine(subtitle, color, YELLOW, true);
+        boxLine("", color);
+        borderBottom(color);
+    }
+
+    // Section header used at the top of each feature
+    inline void header(const string &title)
+    {
+        cout << "\n" << CYAN << BOLD << "  >> " << title << RESET << "\n";
+        cout << GREY << "  " << repeat("-", W - 2) << RESET << "\n\n";
+    }
+
+    inline void ok(const string &msg)
+    {
+        cout << GREEN << BOLD << "  [ OK ] " << RESET << GREEN << msg << RESET << "\n";
+    }
+
+    inline void err(const string &msg)
+    {
+        cout << RED << BOLD << "  [ !! ] " << RESET << RED << msg << RESET << "\n";
+    }
+
+    inline void warn(const string &msg)
+    {
+        cout << YELLOW << BOLD << "  [ !  ] " << RESET << YELLOW << msg << RESET << "\n";
+    }
+
+    inline void info(const string &msg)
+    {
+        cout << CYAN << "  [ i  ] " << RESET << msg << "\n";
+    }
+
+    inline void line(const string &label, const string &value,
+                     const string &valueColor = "")
+    {
+        cout << "  " << GREY << padRight(label, 16) << RESET
+             << ": " << valueColor << value << RESET << "\n";
+    }
+
+    // Prompt that is followed by cin / getline
+    inline void prompt(const string &text)
+    {
+        cout << YELLOW << "  > " << RESET << BOLD << text << RESET;
+        cout.flush();
+    }
+
+    inline void numbered(int n, const string &text)
+    {
+        cout << "  " << CYAN << BOLD << n << "." << RESET << " " << text << "\n";
+    }
+}
 
 class Hotel
 {
@@ -85,10 +238,16 @@ private:
         return ss.str();
     }
 
+    string moneyToString(double v)
+    {
+        stringstream ss;
+        ss << fixed << setprecision(2) << v;
+        return ss.str();
+    }
+
     // Reads an integer safely. If the user types something that
     // isn't a number, this clears the error and asks again instead
-    // of leaving cin stuck (which used to cause an infinite loop of
-    // "Invalid Choice!").
+    // of leaving cin stuck.
     int readInt()
     {
         int value;
@@ -96,15 +255,13 @@ private:
         {
             cin.clear();
             cin.ignore(10000, '\n');
-            cout << "Please enter a number: ";
+            cout << ui::RED << "  Please enter a number: " << ui::RESET;
         }
         return value;
     }
 
     // Builds a menu option list without needing C++11 brace-init lists,
-    // so this compiles fine on older compiler defaults (e.g. Dev-C++ /
-    // TDM-GCC with no -std flag set). Usage:
-    //   vector<string> opts = makeMenu(5, "One", "Two", "Three", "Four", "Five");
+    // so this compiles on older compiler defaults (Dev-C++ / TDM-GCC).
     vector<string> makeMenu(int count, const string &a = "", const string &b = "",
         const string &c = "", const string &d = "", const string &e = "",
         const string &f = "", const string &g = "", const string &h = "",
@@ -119,33 +276,36 @@ private:
         return result;
     }
 
-    // Shows options with arrow-key navigation, Firebase-CLI style.
-    // Up/Down arrows move the highlight, Enter selects it. Returns a
-    // 1-based index, same as what "Enter Choice:" + readInt() used to
-    // return, so every existing switch(choice) still works unchanged.
-    int selectMenu(vector<string> options, string title)
+    // Arrow-key menu. Up/Down move the highlight, Enter selects.
+    // Returns a 1-based index so every switch(choice) still works.
+    int selectMenu(vector<string> options, string title, string subtitle = "")
     {
         int selected = 0;
         int n = (int)options.size();
 
+        ui::hideCursor();
+
         while (true)
         {
-#ifdef _WIN32
-            system("cls");
-#else
-            system("clear");
-#endif
-            cout << "\n============================================\n";
-            cout << title << endl;
-            cout << "============================================\n";
-            cout << "(Use Up/Down arrows, Enter to select)\n\n";
+            ui::clearScreen();
+            ui::banner(title, subtitle);
+            cout << ui::GREY << "   Up/Down arrows to move  |  Enter to select"
+                 << ui::RESET << "\n\n";
 
             for (int i = 0; i < n; i++)
             {
+                string num = (i + 1 < 10 ? "0" : "") + numberToString(i + 1);
                 if (i == selected)
-                    cout << " > " << options[i] << "\n";
+                {
+                    cout << "  " << ui::BG_CYAN << ui::BOLD
+                         << " > " << num << "  "
+                         << ui::padRight(options[i], 38) << ui::RESET << "\n";
+                }
                 else
-                    cout << "   " << options[i] << "\n";
+                {
+                    cout << "  " << ui::GREY << "   " << num << "  " << ui::RESET
+                         << options[i] << "\n";
+                }
             }
 
             int key = getch();
@@ -159,6 +319,8 @@ private:
             }
             else if (key == 13)
             {
+                ui::showCursor();
+                ui::clearScreen();
                 return selected + 1;
             }
 #else
@@ -171,6 +333,8 @@ private:
             }
             else if (key == 10)
             {
+                ui::showCursor();
+                ui::clearScreen();
                 return selected + 1;
             }
 #endif
@@ -184,7 +348,7 @@ private:
         {
             cin.clear();
             cin.ignore(10000, '\n');
-            cout << "Please enter a number: ";
+            cout << ui::RED << "  Please enter a number: " << ui::RESET;
         }
         return value;
     }
@@ -195,22 +359,31 @@ private:
         vector<bool> checked(n, false);
         int cursor = 0;
 
+        ui::hideCursor();
+
         while (true)
         {
-#ifdef _WIN32
-            system("cls");
-#else
-            system("clear");
-#endif
-            cout << "\n============================================\n";
-            cout << title << endl;
-            cout << "============================================\n";
-            cout << "(Up/Down to move, Space to select, Enter to confirm)\n\n";
+            ui::clearScreen();
+            ui::banner(title, "", ui::MAGENTA);
+            cout << ui::GREY << "   Up/Down to move  |  Space to select  |  Enter to confirm"
+                 << ui::RESET << "\n\n";
 
             for (int i = 0; i < n; i++)
             {
-                cout << (i == cursor ? " > " : "   ");
-                cout << "[" << (checked[i] ? "x" : " ") << "] " << options[i] << "\n";
+                string box = checked[i]
+                    ? (ui::GREEN + ui::BOLD + "[x]" + ui::RESET)
+                    : (ui::GREY + "[ ]" + ui::RESET);
+
+                if (i == cursor)
+                {
+                    cout << "  " << ui::CYAN << ui::BOLD << ">" << ui::RESET
+                         << " " << box << " " << ui::BOLD << ui::WHITE
+                         << options[i] << ui::RESET << "\n";
+                }
+                else
+                {
+                    cout << "    " << box << " " << options[i] << "\n";
+                }
             }
 
             int key = getch();
@@ -249,6 +422,9 @@ private:
 #endif
         }
 
+        ui::showCursor();
+        ui::clearScreen();
+
         vector<int> result;
         for (int i = 0; i < n; i++)
             if (checked[i])
@@ -259,7 +435,8 @@ private:
 
     void pauseScreen()
     {
-        cout << "\nPress any key to continue...";
+        cout << "\n" << ui::GREY << "  Press any key to continue..." << ui::RESET;
+        cout.flush();
         getch();
     }
 
@@ -323,97 +500,101 @@ public:
 
     void enterHotelName()
     {
-        cout << "\n============================================\n";
-        cout << "          HOTEL BOOKING SYSTEM\n";
-        cout << "============================================\n";
-        cout << "Enter Hotel Name: ";
+        ui::clearScreen();
+        ui::banner("HOTEL BOOKING SYSTEM", "Welcome - let's get started", ui::MAGENTA);
+        cout << "\n";
+        ui::prompt("Enter Hotel Name: ");
         getline(cin, hotelName);
-        cout << "\nHotel Name: " << hotelName << endl;
-        cout << "Hotel Name Accepted Successfully!\n";
+        cout << "\n";
+        ui::line("Hotel Name", hotelName, ui::BOLD + ui::YELLOW);
+        ui::ok("Hotel Name Accepted Successfully!");
     }
 
     void registerUser()
     {
         string p, cp;
 
-        cout << "\n========== REGISTER ==========\n";
+        ui::header("REGISTER");
 
-        cout << "Enter Name: ";
+        ui::prompt("Enter Name: ");
         getline(cin, userName);
 
-        cout << "Enter Phone Number: ";
+        ui::prompt("Enter Phone Number: ");
         cin >> userPhone;
 
         while (!isValidPhone(userPhone))
         {
-            cout << "Invalid Phone Number! Enter exactly 10 digits: ";
+            ui::err("Invalid Phone Number!");
+            ui::prompt("Enter exactly 10 digits: ");
             cin >> userPhone;
         }
 
-        cout << "Create Password: ";
+        ui::prompt("Create Password: ");
         cin >> p;
 
         while (!isValidPassword(p))
         {
-            cout << "Password must be between 4 and 16 characters! Create Password: ";
+            ui::err("Password must be between 4 and 16 characters!");
+            ui::prompt("Create Password: ");
             cin >> p;
         }
 
-        cout << "Confirm Password: ";
+        ui::prompt("Confirm Password: ");
         cin >> cp;
 
         if (p != cp)
         {
-            cout << "Password does not match!\n";
+            ui::err("Password does not match!");
             return;
         }
 
         userPassword = p;
         registered = true;
-        cout << "Registration Successfully Completed!\n";
+        ui::ok("Registration Successfully Completed!");
     }
 
     void forgotPassword()
     {
         string phone, newPassword, confirmPassword;
 
-        cout << "\n========== FORGOT PASSWORD ==========\n";
+        ui::header("FORGOT PASSWORD");
 
         if (!registered)
         {
-            cout << "No registered account found.\n";
+            ui::warn("No registered account found.");
             return;
         }
 
-        cout << "Enter Registered Phone Number: ";
+        ui::prompt("Enter Registered Phone Number: ");
         cin >> phone;
 
         if (phone != userPhone)
         {
-            cout << "Phone Number Not Found!\n";
+            ui::err("Phone Number Not Found!");
             return;
         }
 
-        cout << "Enter New Password: ";
+        ui::prompt("Enter New Password: ");
         cin >> newPassword;
 
         while (!isValidPassword(newPassword))
         {
-            cout << "Password must be between 4 and 16 characters! Enter New Password: ";
+            ui::err("Password must be between 4 and 16 characters!");
+            ui::prompt("Enter New Password: ");
             cin >> newPassword;
         }
 
-        cout << "Confirm New Password: ";
+        ui::prompt("Confirm New Password: ");
         cin >> confirmPassword;
 
         if (newPassword != confirmPassword)
         {
-            cout << "Password does not match!\n";
+            ui::err("Password does not match!");
             return;
         }
 
         userPassword = newPassword;
-        cout << "Password Changed Successfully!\n";
+        ui::ok("Password Changed Successfully!");
     }
 
     bool login()
@@ -422,40 +603,53 @@ public:
 
         if (!registered)
         {
-            cout << "\nPlease Register First!\n";
+            cout << "\n";
+            ui::warn("Please Register First!");
             return false;
         }
 
-        cout << "\n========== LOGIN ==========\n";
-        cout << "Enter Phone Number: ";
+        ui::header("LOGIN");
+        ui::prompt("Enter Phone Number: ");
         cin >> phone;
 
-        cout << "Enter Password: ";
+        ui::prompt("Enter Password: ");
         cin >> password;
 
         if (phone == userPhone && password == userPassword)
         {
-            cout << "Login Successfully!\n";
+            ui::ok("Login Successfully!");
+            pauseScreen();
             return true;
         }
 
-        cout << "Wrong Phone Number or Password!\n";
+        ui::err("Wrong Phone Number or Password!");
         return false;
     }
 
     void roomStatus()
     {
-        cout << "\n========== ROOM STATUS ==========\n";
+        ui::header("ROOM STATUS");
+
+        int bookedCount = 0;
 
         for (int i = 0; i < 15; i++)
         {
-            cout << "Room " << i + 1 << " : ";
+            cout << "  " << ui::GREY << "Room " << ui::RESET << ui::BOLD
+                 << (i + 1 < 10 ? " " : "") << i + 1 << ui::RESET << " : ";
             if (booked[i])
-                cout << "Booked";
+            {
+                cout << ui::RED << ui::BOLD << "[ Booked    ]" << ui::RESET;
+                bookedCount++;
+            }
             else
-                cout << "Available";
+            {
+                cout << ui::GREEN << ui::BOLD << "[ Available ]" << ui::RESET;
+            }
             cout << endl;
         }
+
+        cout << "\n  " << ui::GREEN << "Available: " << (15 - bookedCount) << ui::RESET
+             << "   " << ui::RED << "Booked: " << bookedCount << ui::RESET << "\n";
     }
 
     double getRoomPrice(int people, int monthNumber)
@@ -484,27 +678,28 @@ public:
         double budget;
         double price;
 
-        cout << "\n========== ROOM RECOMMENDATION ==========\n";
-        cout << "Enter Number of Members: ";
+        ui::header("ROOM RECOMMENDATION");
+        ui::prompt("Enter Number of Members: ");
         people = readInt();
 
-        cout << "Enter Maximum Budget Per Day: Rs. ";
+        ui::prompt("Enter Maximum Budget Per Day: Rs. ");
         budget = readDouble();
 
         if (people <= 0 || budget <= 0)
         {
-            cout << "Invalid Input!\n";
+            ui::err("Invalid Input!");
             return;
         }
 
         price = getRoomPrice(people, 0);
 
-        cout << "Recommended Price: Rs. " << price << " per day\n";
+        cout << "\n";
+        ui::line("Recommended", "Rs. " + moneyToString(price) + " per day", ui::BOLD + ui::YELLOW);
 
         if (budget >= price)
-            cout << "Status: Suitable for your budget!\n";
+            ui::ok("Status: Suitable for your budget!");
         else
-            cout << "Status: Budget is lower than recommended price.\n";
+            ui::warn("Status: Budget is lower than recommended price.");
     }
 
     void quizTask()
@@ -512,56 +707,57 @@ public:
         int answer;
         int score = 0;
 
-        cout << "\n========== FREE BOOKING QUIZ ==========\n";
+        ui::header("FREE BOOKING QUIZ");
 
         if (quizAttempted)
         {
-            cout << "You have already attempted the quiz.\n";
+            ui::warn("You have already attempted the quiz.");
             return;
         }
 
         quizAttempted = true;
 
-        cout << "\nQ1. Which language is used in this project?\n";
-        cout << "1. Java\n2. C++\n3. Python\n4. HTML\n";
-        cout << "Answer: ";
+        cout << ui::BOLD << ui::MAGENTA << "  Q1. " << ui::RESET << "Which language is used in this project?\n";
+        cout << "      1. Java   2. C++   3. Python   4. HTML\n";
+        ui::prompt("Answer: ");
         answer = readInt();
         if (answer == 2) score++;
 
-        cout << "\nQ2. How many rooms are available?\n";
-        cout << "1. 10\n2. 12\n3. 15\n4. 20\n";
-        cout << "Answer: ";
+        cout << "\n" << ui::BOLD << ui::MAGENTA << "  Q2. " << ui::RESET << "How many rooms are available?\n";
+        cout << "      1. 10   2. 12   3. 15   4. 20\n";
+        ui::prompt("Answer: ");
         answer = readInt();
         if (answer == 3) score++;
 
-        cout << "\nQ3. Which header is used for string?\n";
-        cout << "1. <string>\n2. <iomanip>\n3. <cstdlib>\n4. <ctime>\n";
-        cout << "Answer: ";
+        cout << "\n" << ui::BOLD << ui::MAGENTA << "  Q3. " << ui::RESET << "Which header is used for string?\n";
+        cout << "      1. <string>   2. <iomanip>   3. <cstdlib>   4. <ctime>\n";
+        ui::prompt("Answer: ");
         answer = readInt();
         if (answer == 1) score++;
 
-        cout << "\nQ4. Which object is used for output?\n";
-        cout << "1. cin\n2. cout\n3. scanf\n4. input\n";
-        cout << "Answer: ";
+        cout << "\n" << ui::BOLD << ui::MAGENTA << "  Q4. " << ui::RESET << "Which object is used for output?\n";
+        cout << "      1. cin   2. cout   3. scanf   4. input\n";
+        ui::prompt("Answer: ");
         answer = readInt();
         if (answer == 2) score++;
 
-        cout << "\nQ5. Which keyword is used to create a class?\n";
-        cout << "1. object\n2. function\n3. class\n4. create\n";
-        cout << "Answer: ";
+        cout << "\n" << ui::BOLD << ui::MAGENTA << "  Q5. " << ui::RESET << "Which keyword is used to create a class?\n";
+        cout << "      1. object   2. function   3. class   4. create\n";
+        ui::prompt("Answer: ");
         answer = readInt();
         if (answer == 3) score++;
 
-        cout << "\nYour Score: " << score << "/5\n";
+        cout << "\n";
+        ui::line("Your Score", numberToString(score) + "/5", ui::BOLD + ui::YELLOW);
 
         if (score == 5)
         {
             freeBookingAvailable = true;
-            cout << "CONGRATULATIONS! One free room booking is available.\n";
+            ui::ok("CONGRATULATIONS! One free room booking is available.");
         }
         else
         {
-            cout << "Sorry! You need 5/5 for free booking.\n";
+            ui::warn("Sorry! You need 5/5 for free booking.");
         }
     }
 
@@ -571,70 +767,72 @@ public:
 
         roomStatus();
 
-        cout << "\nEnter Room Number (1-15): ";
+        cout << "\n";
+        ui::prompt("Enter Room Number (1-15): ");
         room = readInt();
 
         if (room < 1 || room > 15)
         {
-            cout << "Invalid Room Number!\n";
+            ui::err("Invalid Room Number!");
             return;
         }
 
         if (booked[room - 1])
         {
-            cout << "Room Already Booked!\n";
+            ui::err("Room Already Booked!");
             return;
         }
 
         cin.ignore();
 
-        cout << "\n========== CUSTOMER DETAILS ==========\n";
+        ui::header("CUSTOMER DETAILS");
 
-        cout << "Enter Customer Name: ";
+        ui::prompt("Enter Customer Name: ");
         getline(cin, customerName[room - 1]);
 
-        cout << "Enter Phone Number: ";
+        ui::prompt("Enter Phone Number: ");
         getline(cin, customerPhone[room - 1]);
 
         while (!isValidPhone(customerPhone[room - 1]))
         {
-            cout << "Invalid Phone Number! Enter exactly 10 digits: ";
+            ui::err("Invalid Phone Number!");
+            ui::prompt("Enter exactly 10 digits: ");
             getline(cin, customerPhone[room - 1]);
         }
 
-        cout << "Enter Aadhar Number: ";
+        ui::prompt("Enter Aadhar Number: ");
         getline(cin, customerAadhar[room - 1]);
 
-        cout << "Enter PAN Number: ";
+        ui::prompt("Enter PAN Number: ");
         getline(cin, customerPAN[room - 1]);
 
-        cout << "How Many Members: ";
+        ui::prompt("How Many Members: ");
         members[room - 1] = readInt();
 
         if (members[room - 1] <= 0)
         {
-            cout << "Invalid Number of Members!\n";
+            ui::err("Invalid Number of Members!");
             return;
         }
 
-        cout << "Enter Check-in Date (e.g. 18-08-2026): ";
+        ui::prompt("Enter Check-in Date (e.g. 18-08-2026): ");
         getline(cin, checkInDate[room - 1]);
 
-        cout << "Enter Month Number (1-12): ";
+        ui::prompt("Enter Month Number (1-12): ");
         month[room - 1] = readInt();
 
         if (month[room - 1] < 1 || month[room - 1] > 12)
         {
-            cout << "Invalid Month!\n";
+            ui::err("Invalid Month!");
             return;
         }
 
-        cout << "Number of Days Stay: ";
+        ui::prompt("Number of Days Stay: ");
         daysStay[room - 1] = readInt();
 
         if (daysStay[room - 1] <= 0)
         {
-            cout << "Invalid Number of Days!\n";
+            ui::err("Invalid Number of Days!");
             return;
         }
 
@@ -644,8 +842,9 @@ public:
 
         if (freeBookingAvailable)
         {
-            cout << "\nFREE BOOKING AVAILABLE!\n";
-            cout << "Use Free Booking? (Y/N): ";
+            cout << "\n";
+            ui::ok("FREE BOOKING AVAILABLE!");
+            ui::prompt("Use Free Booking? (Y/N): ");
             cin >> useFree;
         }
 
@@ -677,29 +876,33 @@ public:
             historyCount++;
         }
 
-        cout << "\n========== BOOKING SUCCESSFUL ==========\n";
-        cout << "Hotel: " << hotelName << endl;
-        cout << "Booking ID: " << bookingID[room - 1] << endl;
-        cout << "Customer: " << customerName[room - 1] << endl;
-        cout << "Room Number: " << room << endl;
-        cout << "Members: " << members[room - 1] << endl;
-        cout << "Check-in Date: " << checkInDate[room - 1] << endl;
-        cout << "Days Stay: " << daysStay[room - 1] << endl;
-        cout << "Room Price/Day: Rs. " << price << endl;
-        cout << "Room Bill: Rs. " << roomBill[room - 1] << endl;
+        cout << "\n";
+        ui::borderTop(ui::GREEN);
+        ui::boxLine("BOOKING SUCCESSFUL", ui::GREEN, ui::BOLD + ui::GREEN, true);
+        ui::borderMid(ui::GREEN);
+        ui::boxLine("Hotel          : " + hotelName, ui::GREEN);
+        ui::boxLine("Booking ID     : " + bookingID[room - 1], ui::GREEN, ui::YELLOW);
+        ui::boxLine("Customer       : " + customerName[room - 1], ui::GREEN);
+        ui::boxLine("Room Number    : " + numberToString(room), ui::GREEN);
+        ui::boxLine("Members        : " + numberToString(members[room - 1]), ui::GREEN);
+        ui::boxLine("Check-in Date  : " + checkInDate[room - 1], ui::GREEN);
+        ui::boxLine("Days Stay      : " + numberToString(daysStay[room - 1]), ui::GREEN);
+        ui::boxLine("Room Price/Day : Rs. " + moneyToString(price), ui::GREEN);
+        ui::boxLine("Room Bill      : Rs. " + moneyToString(roomBill[room - 1]), ui::GREEN, ui::BOLD);
+        ui::borderBottom(ui::GREEN);
     }
 
     void foodOrder()
     {
         int room;
 
-        cout << "\n========== FOOD ORDER ==========\n";
-        cout << "Enter Room Number: ";
+        ui::header("FOOD ORDER");
+        ui::prompt("Enter Room Number: ");
         room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
-            cout << "Invalid or Unbooked Room!\n";
+            ui::err("Invalid or Unbooked Room!");
             return;
         }
 
@@ -716,7 +919,7 @@ public:
 
         if (selected.empty())
         {
-            cout << "No Items Selected.\n";
+            ui::warn("No Items Selected.");
             return;
         }
 
@@ -727,12 +930,13 @@ public:
             int idx = selected[s] - 1;
             int quantity;
 
-            cout << "\nEnter Quantity for " << names[idx] << ": ";
+            cout << "\n";
+            ui::prompt("Enter Quantity for " + names[idx] + ": ");
             quantity = readInt();
 
             if (quantity <= 0)
             {
-                cout << "Invalid Quantity, Skipping " << names[idx] << ".\n";
+                ui::warn("Invalid Quantity, Skipping " + names[idx] + ".");
                 continue;
             }
 
@@ -740,25 +944,27 @@ public:
             foodBill[room - 1] += total;
             orderTotal += total;
 
-            cout << names[idx] << " x " << quantity << " = Rs. " << total << endl;
+            cout << "  " << ui::GREEN << names[idx] << " x " << quantity
+                 << " = Rs. " << total << ui::RESET << endl;
         }
 
-        cout << "\nOrder Total: Rs. " << orderTotal << endl;
-        cout << "Current Food Bill: Rs. " << foodBill[room - 1] << endl;
-        cout << "Food Order Completed!\n";
+        cout << "\n";
+        ui::line("Order Total", "Rs. " + moneyToString(orderTotal), ui::BOLD + ui::YELLOW);
+        ui::line("Food Bill", "Rs. " + moneyToString(foodBill[room - 1]), ui::BOLD);
+        ui::ok("Food Order Completed!");
     }
 
     void roomServiceRequest()
     {
         int room;
 
-        cout << "\n========== ROOM SERVICE ==========\n";
-        cout << "Enter Room Number: ";
+        ui::header("ROOM SERVICE");
+        ui::prompt("Enter Room Number: ");
         room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
-            cout << "Invalid or Unbooked Room!\n";
+            ui::err("Invalid or Unbooked Room!");
             return;
         }
 
@@ -772,7 +978,7 @@ public:
 
         if (selected.empty())
         {
-            cout << "No Service Selected.\n";
+            ui::warn("No Service Selected.");
             return;
         }
 
@@ -789,54 +995,55 @@ public:
                 roomService[room - 1] += ", " + names[idx];
         }
 
-        cout << "Room Service Request Submitted!\n";
+        ui::ok("Room Service Request Submitted!");
     }
 
     void payment()
     {
         int room, choice;
 
-        cout << "\n========== PAYMENT ==========\n";
-        cout << "Enter Room Number: ";
+        ui::header("PAYMENT");
+        ui::prompt("Enter Room Number: ");
         room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
-            cout << "Invalid or Unbooked Room!\n";
+            ui::err("Invalid or Unbooked Room!");
             return;
         }
 
-        cout << "1. Cash\n";
-        cout << "2. UPI\n";
-        cout << "3. Card\n";
-        cout << "4. Online Payment\n";
-        cout << "Select Payment Method: ";
+        cout << "\n";
+        ui::numbered(1, "Cash");
+        ui::numbered(2, "UPI");
+        ui::numbered(3, "Card");
+        ui::numbered(4, "Online Payment");
+        cout << "\n";
+        ui::prompt("Select Payment Method: ");
         choice = readInt();
 
+        cout << "\n";
         switch (choice)
         {
             case 1:
-                cout << "Payment Method: Cash\n";
+                ui::ok("Payment Method: Cash");
                 break;
             case 2:
-                cout << "Payment Method: UPI\n";
-                cout << "UPI ID: " << upiID << endl;
+                ui::ok("Payment Method: UPI");
+                ui::line("UPI ID", upiID, ui::BOLD + ui::YELLOW);
                 break;
             case 3:
-                cout << "Payment Method: Card\n";
+                ui::ok("Payment Method: Card");
                 break;
             case 4:
-                cout << "Payment Method: Online Payment\n";
+                ui::ok("Payment Method: Online Payment");
                 break;
             default:
-                cout << "Invalid Payment Method!\n";
+                ui::err("Invalid Payment Method!");
         }
     }
 
     // Prints the bill for a room that's already been validated as
-    // booked. Shared by receipt() (which asks the user for a room
-    // number first) and checkout() (which already has one) so the
-    // room is never asked for twice.
+    // booked. Shared by receipt() and checkout().
     void printReceipt(int room)
     {
         double total =
@@ -844,41 +1051,40 @@ public:
             foodBill[room - 1] +
             serviceBill[room - 1];
 
-        cout << fixed << setprecision(2);
-
-        cout << "\n============================================\n";
-        cout << "              " << hotelName << endl;
-        cout << "                  RECEIPT\n";
-        cout << "============================================\n";
-        cout << "Booking ID    : " << bookingID[room - 1] << endl;
-        cout << "Customer Name : " << customerName[room - 1] << endl;
-        cout << "Phone Number  : " << customerPhone[room - 1] << endl;
-        cout << "Room Number   : " << room << endl;
-        cout << "Members       : " << members[room - 1] << endl;
-        cout << "Check-in Date : " << checkInDate[room - 1] << endl;
-        cout << "Days Stay     : " << daysStay[room - 1] << endl;
-        cout << "--------------------------------------------\n";
-        cout << "Room Bill     : Rs. " << roomBill[room - 1] << endl;
-        cout << "Food Bill     : Rs. " << foodBill[room - 1] << endl;
-        cout << "Service Bill  : Rs. " << serviceBill[room - 1] << endl;
-        cout << "--------------------------------------------\n";
-        cout << "Grand Total   : Rs. " << total << endl;
-        cout << "============================================\n";
-        cout << "          THANK YOU FOR VISITING!\n";
-        cout << "============================================\n";
+        cout << "\n";
+        ui::borderTop(ui::YELLOW);
+        ui::boxLine(hotelName, ui::YELLOW, ui::BOLD + ui::WHITE, true);
+        ui::boxLine("RECEIPT", ui::YELLOW, ui::CYAN, true);
+        ui::borderMid(ui::YELLOW);
+        ui::boxLine("Booking ID    : " + bookingID[room - 1], ui::YELLOW);
+        ui::boxLine("Customer Name : " + customerName[room - 1], ui::YELLOW);
+        ui::boxLine("Phone Number  : " + customerPhone[room - 1], ui::YELLOW);
+        ui::boxLine("Room Number   : " + numberToString(room), ui::YELLOW);
+        ui::boxLine("Members       : " + numberToString(members[room - 1]), ui::YELLOW);
+        ui::boxLine("Check-in Date : " + checkInDate[room - 1], ui::YELLOW);
+        ui::boxLine("Days Stay     : " + numberToString(daysStay[room - 1]), ui::YELLOW);
+        ui::borderMid(ui::YELLOW);
+        ui::boxLine("Room Bill     : Rs. " + moneyToString(roomBill[room - 1]), ui::YELLOW);
+        ui::boxLine("Food Bill     : Rs. " + moneyToString(foodBill[room - 1]), ui::YELLOW);
+        ui::boxLine("Service Bill  : Rs. " + moneyToString(serviceBill[room - 1]), ui::YELLOW);
+        ui::borderMid(ui::YELLOW);
+        ui::boxLine("Grand Total   : Rs. " + moneyToString(total), ui::YELLOW, ui::BOLD + ui::GREEN);
+        ui::borderMid(ui::YELLOW);
+        ui::boxLine("THANK YOU FOR VISITING!", ui::YELLOW, ui::MAGENTA, true);
+        ui::borderBottom(ui::YELLOW);
     }
 
     void receipt()
     {
         int room;
 
-        cout << "\n========== RECEIPT ==========\n";
-        cout << "Enter Room Number: ";
+        ui::header("RECEIPT");
+        ui::prompt("Enter Room Number: ");
         room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
-            cout << "Invalid or Unbooked Room!\n";
+            ui::err("Invalid or Unbooked Room!");
             return;
         }
 
@@ -889,31 +1095,31 @@ public:
     {
         int room, extraDays;
 
-        cout << "\n========== EXTEND STAY ==========\n";
-        cout << "Enter Room Number: ";
+        ui::header("EXTEND STAY");
+        ui::prompt("Enter Room Number: ");
         room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
-            cout << "Invalid or Unbooked Room!\n";
+            ui::err("Invalid or Unbooked Room!");
             return;
         }
 
-        cout << "Current Stay: " << daysStay[room - 1] << " days\n";
-        cout << "Enter Additional Days: ";
+        ui::line("Current Stay", numberToString(daysStay[room - 1]) + " days");
+        ui::prompt("Enter Additional Days: ");
         extraDays = readInt();
 
         if (extraDays <= 0)
         {
-            cout << "Invalid Days!\n";
+            ui::err("Invalid Days!");
             return;
         }
 
         if (roomBill[room - 1] == 0)
         {
             daysStay[room - 1] += extraDays;
-            cout << "Stay Extended Successfully!\n";
-            cout << "Room Bill remains FREE.\n";
+            ui::ok("Stay Extended Successfully!");
+            ui::info("Room Bill remains FREE.");
             return;
         }
 
@@ -924,22 +1130,22 @@ public:
         roomBill[room - 1] =
             pricePerDay * daysStay[room - 1];
 
-        cout << "Stay Extended Successfully!\n";
-        cout << "New Stay: " << daysStay[room - 1] << " days\n";
-        cout << "Updated Room Bill: Rs. " << roomBill[room - 1] << endl;
+        ui::ok("Stay Extended Successfully!");
+        ui::line("New Stay", numberToString(daysStay[room - 1]) + " days");
+        ui::line("Updated Room Bill", "Rs. " + moneyToString(roomBill[room - 1]), ui::BOLD + ui::YELLOW);
     }
 
     void cancelBooking()
     {
         int room;
 
-        cout << "\n========== CANCEL BOOKING ==========\n";
-        cout << "Enter Room Number: ";
+        ui::header("CANCEL BOOKING");
+        ui::prompt("Enter Room Number: ");
         room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
-            cout << "Invalid or Unbooked Room!\n";
+            ui::err("Invalid or Unbooked Room!");
             return;
         }
 
@@ -947,19 +1153,19 @@ public:
         // added or paid for, so this can't be used to dodge charges.
         if (foodBill[room - 1] > 0 || serviceBill[room - 1] > 0)
         {
-            cout << "Cannot cancel: charges already added to this room.\n";
-            cout << "Please use Checkout instead.\n";
+            ui::err("Cannot cancel: charges already added to this room.");
+            ui::info("Please use Checkout instead.");
             return;
         }
 
-        cout << "Customer: " << customerName[room - 1] << endl;
-        cout << "Are you sure you want to cancel this booking? (Y/N): ";
+        ui::line("Customer", customerName[room - 1], ui::BOLD);
+        ui::prompt("Are you sure you want to cancel this booking? (Y/N): ");
         char confirm;
         cin >> confirm;
 
         if (confirm != 'Y' && confirm != 'y')
         {
-            cout << "Cancellation aborted.\n";
+            ui::warn("Cancellation aborted.");
             return;
         }
 
@@ -987,7 +1193,7 @@ public:
         complaint[room - 1] = "";
         complaintStatus[room - 1] = "";
 
-        cout << "Booking Cancelled Successfully.\n";
+        ui::ok("Booking Cancelled Successfully.");
     }
 
     void checkout()
@@ -995,23 +1201,23 @@ public:
         int room;
         string password;
 
-        cout << "\n========== CHECKOUT ==========\n";
-        cout << "Enter Room Number: ";
+        ui::header("CHECKOUT");
+        ui::prompt("Enter Room Number: ");
         room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
-            cout << "Invalid or Unbooked Room!\n";
+            ui::err("Invalid or Unbooked Room!");
             return;
         }
 
-        cout << "Customer: " << customerName[room - 1] << endl;
-        cout << "Enter Checkout Password: ";
+        ui::line("Customer", customerName[room - 1], ui::BOLD);
+        ui::prompt("Enter Checkout Password: ");
         cin >> password;
 
         if (password != checkoutPassword)
         {
-            cout << "Wrong Checkout Password!\n";
+            ui::err("Wrong Checkout Password!");
             return;
         }
 
@@ -1050,108 +1256,111 @@ public:
 
         bookingID[room - 1] = "";
 
-        cout << "Checkout Successfully Completed!\n";
-        cout << "Room is now Available.\n";
+        cout << "\n";
+        ui::ok("Checkout Successfully Completed!");
+        ui::info("Room is now Available.");
     }
 
     void feedbackSystem()
     {
         int room;
 
-        cout << "\n========== CUSTOMER FEEDBACK ==========\n";
-        cout << "Enter Room Number: ";
+        ui::header("CUSTOMER FEEDBACK");
+        ui::prompt("Enter Room Number: ");
         room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
-            cout << "Invalid or Unbooked Room!\n";
+            ui::err("Invalid or Unbooked Room!");
             return;
         }
 
-        cout << "Rating (1-5): ";
+        ui::prompt("Rating (1-5): ");
         rating[room - 1] = readInt();
 
         if (rating[room - 1] < 1 || rating[room - 1] > 5)
         {
-            cout << "Invalid Rating!\n";
+            ui::err("Invalid Rating!");
             return;
         }
 
         cin.ignore();
 
-        cout << "Enter Feedback: ";
+        ui::prompt("Enter Feedback: ");
         getline(cin, feedback[room - 1]);
 
-        cout << "Thank you for your feedback!\n";
+        ui::ok("Thank you for your feedback!");
     }
 
     void complaintSystem()
     {
         int room;
 
-        cout << "\n========== COMPLAINT ==========\n";
-        cout << "Enter Room Number: ";
+        ui::header("COMPLAINT");
+        ui::prompt("Enter Room Number: ");
         room = readInt();
 
         if (room < 1 || room > 15 || !booked[room - 1])
         {
-            cout << "Invalid or Unbooked Room!\n";
+            ui::err("Invalid or Unbooked Room!");
             return;
         }
 
         cin.ignore();
 
-        cout << "Enter Complaint: ";
+        ui::prompt("Enter Complaint: ");
         getline(cin, complaint[room - 1]);
 
         complaintStatus[room - 1] = "Pending";
 
-        cout << "Complaint Submitted Successfully!\n";
+        ui::ok("Complaint Submitted Successfully!");
     }
 
     void lostAndFound()
     {
         int choice;
 
-        cout << "\n========== LOST AND FOUND ==========\n";
-        cout << "1. Report Lost Item\n";
-        cout << "2. View Lost Items\n";
-        cout << "3. Back\n";
-        cout << "Enter Choice: ";
+        ui::header("LOST AND FOUND");
+        ui::numbered(1, "Report Lost Item");
+        ui::numbered(2, "View Lost Items");
+        ui::numbered(3, "Back");
+        cout << "\n";
+        ui::prompt("Enter Choice: ");
         choice = readInt();
 
         if (choice == 1)
         {
             if (lostFoundCount >= 100)
             {
-                cout << "Storage Full!\n";
+                ui::err("Storage Full!");
                 return;
             }
 
             cin.ignore();
 
-            cout << "Enter Lost Item Name: ";
+            ui::prompt("Enter Lost Item Name: ");
             getline(cin, lostFoundItem[lostFoundCount]);
 
             lostFoundStatus[lostFoundCount] = "Reported";
             lostFoundCount++;
 
-            cout << "Lost Item Reported Successfully!\n";
+            ui::ok("Lost Item Reported Successfully!");
         }
         else if (choice == 2)
         {
             if (lostFoundCount == 0)
             {
-                cout << "No Lost Items Found.\n";
+                ui::warn("No Lost Items Found.");
                 return;
             }
 
+            cout << "\n";
             for (int i = 0; i < lostFoundCount; i++)
             {
-                cout << i + 1 << ". "
+                cout << "  " << ui::CYAN << ui::BOLD << i + 1 << "." << ui::RESET << " "
                      << lostFoundItem[i]
-                     << " - "
-                     << lostFoundStatus[i]
+                     << ui::GREY << " - " << ui::RESET << ui::YELLOW
+                     << lostFoundStatus[i] << ui::RESET
                      << endl;
             }
         }
@@ -1159,17 +1368,18 @@ public:
 
     void bookingHistory()
     {
-        cout << "\n========== BOOKING HISTORY ==========\n";
+        ui::header("BOOKING HISTORY");
 
         if (historyCount == 0)
         {
-            cout << "No Booking History Found.\n";
+            ui::warn("No Booking History Found.");
             return;
         }
 
         for (int i = 0; i < historyCount; i++)
         {
-            cout << i + 1 << ". " << history[i] << endl;
+            cout << "  " << ui::CYAN << ui::BOLD << i + 1 << "." << ui::RESET
+                 << " " << history[i] << endl;
         }
     }
 
@@ -1177,17 +1387,19 @@ public:
     {
         string password;
 
-        cout << "\n========== ADMIN LOGIN ==========\n";
-        cout << "Enter Admin Password: ";
+        ui::header("ADMIN LOGIN");
+        ui::prompt("Enter Admin Password: ");
         cin >> password;
 
         if (password == adminPassword)
         {
-            cout << "Admin Login Successfully!\n";
+            ui::ok("Admin Login Successfully!");
+            pauseScreen();
             return true;
         }
 
-        cout << "Wrong Admin Password!\n";
+        ui::err("Wrong Admin Password!");
+        pauseScreen();
         return false;
     }
 
@@ -1195,69 +1407,69 @@ public:
     {
         string oldPassword, newPassword, confirmPassword;
 
-        cout << "\n========== CHANGE ADMIN PASSWORD ==========\n";
+        ui::header("CHANGE ADMIN PASSWORD");
 
-        cout << "Enter Current Admin Password: ";
+        ui::prompt("Enter Current Admin Password: ");
         cin >> oldPassword;
 
         if (oldPassword != adminPassword)
         {
-            cout << "Wrong Current Admin Password!\n";
+            ui::err("Wrong Current Admin Password!");
             return;
         }
 
-        cout << "Enter New Admin Password: ";
+        ui::prompt("Enter New Admin Password: ");
         cin >> newPassword;
 
-        cout << "Confirm New Password: ";
+        ui::prompt("Confirm New Password: ");
         cin >> confirmPassword;
 
         if (newPassword != confirmPassword)
         {
-            cout << "Password does not match!\n";
+            ui::err("Password does not match!");
             return;
         }
 
         adminPassword = newPassword;
-        cout << "Admin Password Changed Successfully!\n";
+        ui::ok("Admin Password Changed Successfully!");
     }
 
     void changeCheckoutPassword()
     {
         string oldPassword, newPassword, confirmPassword;
 
-        cout << "\n========== CHANGE CHECKOUT PASSWORD ==========\n";
+        ui::header("CHANGE CHECKOUT PASSWORD");
 
-        cout << "Enter Current Checkout Password: ";
+        ui::prompt("Enter Current Checkout Password: ");
         cin >> oldPassword;
 
         if (oldPassword != checkoutPassword)
         {
-            cout << "Wrong Current Checkout Password!\n";
+            ui::err("Wrong Current Checkout Password!");
             return;
         }
 
-        cout << "Enter New Checkout Password: ";
+        ui::prompt("Enter New Checkout Password: ");
         cin >> newPassword;
 
-        cout << "Confirm New Password: ";
+        ui::prompt("Confirm New Password: ");
         cin >> confirmPassword;
 
         if (newPassword != confirmPassword)
         {
-            cout << "Password does not match!\n";
+            ui::err("Password does not match!");
             return;
         }
 
         checkoutPassword = newPassword;
-        cout << "Checkout Password Changed Successfully!\n";
+        ui::ok("Checkout Password Changed Successfully!");
     }
 
     void viewComplaints()
     {
         bool found = false;
 
-        cout << "\n========== CUSTOMER COMPLAINTS ==========\n";
+        ui::header("CUSTOMER COMPLAINTS");
 
         for (int i = 0; i < 15; i++)
         {
@@ -1265,22 +1477,23 @@ public:
             {
                 found = true;
 
-                cout << "\nRoom: " << i + 1 << endl;
-                cout << "Customer: " << customerName[i] << endl;
-                cout << "Complaint: " << complaint[i] << endl;
-                cout << "Status: " << complaintStatus[i] << endl;
+                cout << "\n";
+                ui::line("Room", numberToString(i + 1), ui::BOLD);
+                ui::line("Customer", customerName[i]);
+                ui::line("Complaint", complaint[i], ui::RED);
+                ui::line("Status", complaintStatus[i], ui::YELLOW);
             }
         }
 
         if (!found)
-            cout << "No Complaints Found.\n";
+            ui::warn("No Complaints Found.");
     }
 
     void viewFeedback()
     {
         bool found = false;
 
-        cout << "\n========== CUSTOMER FEEDBACK ==========\n";
+        ui::header("CUSTOMER FEEDBACK");
 
         for (int i = 0; i < 15; i++)
         {
@@ -1288,15 +1501,16 @@ public:
             {
                 found = true;
 
-                cout << "\nRoom: " << i + 1 << endl;
-                cout << "Customer: " << customerName[i] << endl;
-                cout << "Rating: " << rating[i] << "/5" << endl;
-                cout << "Feedback: " << feedback[i] << endl;
+                cout << "\n";
+                ui::line("Room", numberToString(i + 1), ui::BOLD);
+                ui::line("Customer", customerName[i]);
+                ui::line("Rating", numberToString(rating[i]) + "/5", ui::YELLOW);
+                ui::line("Feedback", feedback[i], ui::GREEN);
             }
         }
 
         if (!found)
-            cout << "No Feedback Found.\n";
+            ui::warn("No Feedback Found.");
     }
 
     void adminPanel()
@@ -1312,7 +1526,7 @@ public:
                 makeMenu(8, "Room Status", "Booking History", "Change Admin Password",
                     "Change Checkout Password", "Lost & Found", "View Complaints",
                     "View Feedback", "Logout"),
-                "ADMIN PANEL"
+                "ADMIN PANEL", hotelName
             );
 
             switch (choice){
@@ -1338,10 +1552,10 @@ public:
                     viewFeedback();
                     break;
                 case 8:
-                    cout << "Admin Logged Out.\n";
+                    ui::ok("Admin Logged Out.");
                     break;
                 default:
-                    cout << "Invalid Choice!\n";
+                    ui::err("Invalid Choice!");
             }
 
             if (choice != 8)
@@ -1361,7 +1575,7 @@ public:
                     "Room Service", "Payment", "Receipt", "Extend Stay", "Checkout",
                     "Feedback", "Complaint", "Lost & Found", "Booking History",
                     "Free Booking Quiz", "Cancel Booking", "Logout"),
-                "CUSTOMER MENU"
+                "CUSTOMER MENU", hotelName
             );
 
             switch (choice)
@@ -1412,10 +1626,10 @@ public:
                     cancelBooking();
                     break;
                 case 16:
-                    cout << "Customer Logged Out.\n";
+                    ui::ok("Customer Logged Out.");
                     break;
                 default:
-                    cout << "Invalid Choice!\n";
+                    ui::err("Invalid Choice!");
             }
 
             if (choice != 16)
@@ -1429,12 +1643,13 @@ public:
         int choice;
 
         enterHotelName();
+        pauseScreen();
 
         do
         {
             choice = selectMenu(
                 makeMenu(5, "Register", "Login", "Forgot Password", "Admin Panel", "Exit"),
-                hotelName + "\n          HOTEL BOOKING SYSTEM"
+                "HOTEL BOOKING SYSTEM", hotelName
             );
 
             switch (choice)
@@ -1453,10 +1668,12 @@ public:
                     adminPanel();
                     break;
                 case 5:
-                    cout << "\nTHANK YOU FOR USING HOTEL SYSTEM\n";
+                    ui::clearScreen();
+                    ui::banner("THANK YOU FOR USING HOTEL SYSTEM", "See you again!", ui::MAGENTA);
+                    cout << "\n";
                     break;
                 default:
-                    cout << "Invalid Choice!\n";
+                    ui::err("Invalid Choice!");
             }
 
             if (choice != 5)
@@ -1468,6 +1685,8 @@ public:
 
 int main()
 {
+    ui::enableAnsi();
+
     Hotel hotel;
     hotel.run();
 
