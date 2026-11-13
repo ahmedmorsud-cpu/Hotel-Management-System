@@ -14,10 +14,20 @@
     #include <cstdio>
 #endif
 
+#ifdef _WIN32
+// Use the underscored CRT function on Windows. It avoids the getch()
+// compatibility issue that can trigger the "no current window" popup
+// in some MinGW/Dev-C++ console setups.
+inline int readKey()
+{
+    return _getch();
+}
+#endif
+
 using namespace std;
 
 #ifndef _WIN32
-int getch()
+int readKey()
 {
     termios oldt, newt;
     tcgetattr(STDIN_FILENO, &oldt);
@@ -308,12 +318,12 @@ private:
                 }
             }
 
-            int key = getch();
+            int key = readKey();
 
 #ifdef _WIN32
             if (key == 224 || key == 0)
             {
-                key = getch();
+                key = readKey();
                 if (key == 72) selected = (selected - 1 + n) % n;
                 else if (key == 80) selected = (selected + 1) % n;
             }
@@ -326,8 +336,8 @@ private:
 #else
             if (key == 27)
             {
-                getch();
-                int arrow = getch();
+                readKey();
+                int arrow = readKey();
                 if (arrow == 'A') selected = (selected - 1 + n) % n;
                 else if (arrow == 'B') selected = (selected + 1) % n;
             }
@@ -386,12 +396,12 @@ private:
                 }
             }
 
-            int key = getch();
+            int key = readKey();
 
 #ifdef _WIN32
             if (key == 224 || key == 0)
             {
-                key = getch();
+                key = readKey();
                 if (key == 72) cursor = (cursor - 1 + n) % n;
                 else if (key == 80) cursor = (cursor + 1) % n;
             }
@@ -406,8 +416,8 @@ private:
 #else
             if (key == 27)
             {
-                getch();
-                int arrow = getch();
+                readKey();
+                int arrow = readKey();
                 if (arrow == 'A') cursor = (cursor - 1 + n) % n;
                 else if (arrow == 'B') cursor = (cursor + 1) % n;
             }
@@ -437,7 +447,7 @@ private:
     {
         cout << "\n" << ui::GREY << "  Press any key to continue..." << ui::RESET;
         cout.flush();
-        getch();
+        readKey();
     }
 
     bool isValidPhone(const string &phone)
